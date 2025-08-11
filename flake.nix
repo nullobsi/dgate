@@ -15,12 +15,13 @@
 				ninja
 				meson
 				libev
+				lmdb
 			];
 		in
 		{
 			packages.default =
 				let
-					inherit (pkgs) stdenv lib;
+					inherit (pkgs) stdenv;
 				in
 				stdenv.mkDerivation {
 					inherit version buildInputs;
