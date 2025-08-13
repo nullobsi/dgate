@@ -1,9 +1,8 @@
-#include <iostream>
-#include <ev++.h>
-#include <memory>
 #include "common/lmdb++.h"
-#include "ircddb/IRCDDBApp.h"
-#include "ircddb/IRCMessage.h"
+#include "ircddb/app.h"
+#include <ev++.h>
+#include <iostream>
+#include <memory>
 
 using namespace std;
 
@@ -12,7 +11,7 @@ int main()
 	auto env_ = lmdb::env::create();
 	std::shared_ptr<lmdb::env> env = std::make_shared<lmdb::env>(std::move(env_));
 
-	env->set_mapsize(32UL * 1024UL * 1024UL); // 32MB
+	env->set_mapsize(32UL * 1024UL * 1024UL);// 32MB
 	env->set_max_dbs(3);
 	env->open("./test.mdb/");
 
@@ -30,13 +29,7 @@ int main()
 		wtxn.commit();
 	}
 
-	IRCDDBApp app("KO6JXH", {{
-		"ircv4.openquad.net",
-		"",
-		9007,
-		AF_INET
-	}}, "");
+	ircddb::app app("u-KO6JXH", {{"ircv4.openquad.net", "", "#dstar", 9007, AF_INET}}, "");
 
 	app.run();
 }
-

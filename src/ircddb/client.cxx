@@ -1,5 +1,5 @@
-#include "IRCClient.h"
-#include "ircddb/IRCMessage.h"
+#include "client.h"
+#include "ircddb/irc_msg.h"
 #include <cerrno>
 #include <cstring>
 #include <ev++.h>
@@ -11,21 +11,23 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-IRCClient::IRCClient(const std::string& host, const uint_least16_t port, const std::string& pass, const std::string& nick, const std::string& user, const std::string& realname, std::shared_ptr<ev::async> evCallback)
-	: loop_(), evNewData_(loop_), evWriteable_(loop_), evTimeout_(loop_), evMsgInQueue_(loop_), evNewMessageCallback_(evCallback), host_(host), port_(port), pass_(pass), nick_(nick), user_(user), realname_(realname)
+namespace ircddb {
+
+client::client(const std::string& host, const uint_least16_t port, const std::string& pass, const std::string& nick, const std::string& user, const std::string& realname, std::shared_ptr<ev::async> ev_msg_in_callback)
+	: loop_(), ev_sock_readable_(loop_), ev_sock_writable_(loop_), ev_sock_timeout_(loop_), ev_msg_out_(loop_), ev_msg_in_callback_(ev_msg_in_callback), host_(host), port_(port), pass_(pass), nick_(nick), user_(user), realname_(realname)
 {
-	evNewData_.set<IRCClient, &IRCClient::readable>(this);
-	evWriteable_.set<IRCClient, &IRCClient::writeable>(this);
-	evTimeout_.set<IRCClient, &IRCClient::timeout>(this);
-	evMsgInQueue_.set<IRCClient, &IRCClient::msgInQueue>(this);
+	ev_sock_readable_.set<client, &client::readable>(this);
+	ev_sock_writable_.set<client, &client::writable>(this);
+	ev_sock_timeout_.set<client, &client::timeout>(this);
+	ev_msg_out_.set<client, &client::msg_out>(this);
 }
 
-void IRCClient::run()
+void client::run()
 {
 	loop_.run();
 };
 
-int IRCClient::connect()
+int client::connect()
 {
 	int status;
 	struct addrinfo hints;
@@ -68,52 +70,52 @@ int IRCClient::connect()
 	}
 
 	fcntl(socketFd_, F_SETFL, O_NONBLOCK);
-	evWriteable_.set(socketFd_, ev::WRITE);
-	evNewData_.set(socketFd_, ev::READ);
+	ev_sock_writable_.set(socketFd_, ev::WRITE);
+	ev_sock_readable_.set(socketFd_, ev::READ);
 
-	evNewData_.start();
-	evTimeout_.start(45., 45.);
-	evMsgInQueue_.start();
+	ev_sock_readable_.start();
+	ev_sock_timeout_.start(45., 45.);
+	ev_msg_out_.start();
 
-	sendCommand("PASS :" + pass_ + "\r\n");
-	sendCommand("NICK :" + nick_ + "\r\n");
-	sendCommand("USER " + user_ + " 0 * :" + realname_ + "\r\n");
+	send_msg("PASS :" + pass_ + "\r\n");
+	send_msg("NICK :" + nick_ + "\r\n");
+	send_msg("USER " + user_ + " 0 * :" + realname_ + "\r\n");
 
 	return 0;
 }
 
-void IRCClient::cleanup()
+void client::cleanup()
 {
 	if (socketFd_ != -1) {
 		if (state != ERRORED) write(socketFd_, "QUIT\r\n", 6);
 		close(socketFd_);
 		socketFd_ = -1;
 	}
-	evNewData_.stop();
-	evWriteable_.stop();
-	evTimeout_.stop();
-	evMsgInQueue_.stop();
+	ev_sock_readable_.stop();
+	ev_sock_writable_.stop();
+	ev_sock_timeout_.stop();
+	ev_msg_out_.stop();
 	outBuffer_ = std::stringstream();
 	inBuffer_ = std::stringstream();
-	while (recvMsgQueue.pop()) {}
+	while (queue_msg_in.pop()) {}
 }
 
-void IRCClient::dispatchCommand(const IRCMessage& msg)
+void client::queue_msg(const irc_msg& msg)
 {
 	if (msg.command == IRCMESSAGE_INVALID) return;
 
-	recvMsgQueue.push(msg);
-	evMsgInQueue_.send();
+	queue_msg_out_.push(msg);
+	ev_msg_out_.send();
 }
 
-int IRCClient::sendCommand(const std::string& raw)
+int client::send_msg(const std::string& raw)
 {
 	auto count = write(socketFd_, raw.c_str(), raw.size());
 	if (count == -1) {
 		auto errn = errno;
 		if (errn == EAGAIN || errn == EWOULDBLOCK) {
 			outBuffer_ << raw;
-			evWriteable_.start();
+			ev_sock_writable_.start();
 			return 0;
 		}
 		else {
@@ -128,25 +130,19 @@ int IRCClient::sendCommand(const std::string& raw)
 		// Leftovers will be queued for writing.
 		size_t leftover = raw.size() - count;
 		outBuffer_.write(raw.c_str() + count, leftover);
-		evWriteable_.start();
+		ev_sock_writable_.start();
 	}
 	return 0;
 }
 
-int IRCClient::sendCommand(const IRCMessage& msg)
-{
-	std::string cmd = msg.compose();
-	return sendCommand(cmd);
-}
-
-void IRCClient::writeable(ev::io&, int)
+void client::writable(ev::io&, int)
 {
 	// Check outBuffer and resend bytes as needed.
 	auto toWrite = outBuffer_.rdbuf()->in_avail();
 	if (toWrite <= 0) {
 		// well, what are we doing here???
 		outBuffer_ = std::stringstream();
-		evWriteable_.stop();
+		ev_sock_writable_.stop();
 		return;
 	}
 
@@ -174,7 +170,7 @@ void IRCClient::writeable(ev::io&, int)
 	}
 }
 
-void IRCClient::timeout(ev::timer&, int)
+void client::timeout(ev::timer&, int)
 {
 	// If we're here, we have not recieved data from the server
 	// for 45 seconds.
@@ -188,14 +184,14 @@ void IRCClient::timeout(ev::timer&, int)
 // characters, so this should be plenty for now.
 #define IRCMSG_BUF 544
 
-void IRCClient::readable(ev::io&, int)
+void client::readable(ev::io&, int)
 {
 	char buf[IRCMSG_BUF];
 
-	auto count = read(socketFd_, &buf[0], IRCMSG_BUF);
-	while (count == IRCMSG_BUF) {
-		inBuffer_.write(buf, IRCMSG_BUF);
-		count = read(socketFd_, &buf[0], IRCMSG_BUF);
+	auto count = read(socketFd_, buf, IRCMSG_BUF);
+	while (count > 0 && count <= IRCMSG_BUF) {
+		inBuffer_.write(buf, count);
+		count = read(socketFd_, buf, IRCMSG_BUF);
 	}
 
 	if (count == -1) {
@@ -215,7 +211,7 @@ void IRCClient::readable(ev::io&, int)
 		return;
 	}
 
-	evTimeout_.again();
+	ev_sock_timeout_.again();
 
 	auto view = inBuffer_.view();
 
@@ -223,38 +219,58 @@ void IRCClient::readable(ev::io&, int)
 	std::string::size_type to = view.find('\n');
 	while (to != std::string::npos) {
 		auto msg = std::string(view.substr(from, to - from + 1));
-		processInMessage(msg);
+		if (msg_in(msg)) {
+			std::cout << "ircclient invalid: " << msg;
+		}
 		from = to + 1;
 		to = view.find('\n', from);
 	}
 
-	inBuffer_ = std::stringstream(std::string(view.substr(from)));
+	if (view.substr(from).empty()) {
+		inBuffer_ = std::stringstream();
+	}
+	else {
+		inBuffer_ = std::stringstream(std::string(view.substr(from)), std::ios_base::in | std::ios_base::out | std::ios_base::ate);
+	}
 
-	if (recvMsgQueue.size() != 0)
-		evNewMessageCallback_->send();
+	if (queue_msg_in.size() != 0)
+		ev_msg_in_callback_->send();
 }
 
-void IRCClient::msgInQueue(ev::async&, int)
+void client::msg_out(ev::async&, int)
 {
-	while (auto msg = recvMsgQueue.pop()) {
+	while (auto msg = queue_msg_out_.pop()) {
 		if ((*msg).command == IRCMESSAGE_INVALID) continue;
-		sendCommand(*msg);
+		std::cout << "Send message: " << *msg;
+		send_msg(msg->compose());
 	}
 }
 
-void IRCClient::processInMessage(const IRCMessage& msg)
+int client::msg_in(const irc_msg& msg)
 {
 	// XXX: this is debug
-	//std::cout << "ircclient:" << msg;
-	if (msg.command == IRCMESSAGE_INVALID) return;
+	if (msg.command == IRCMESSAGE_INVALID) {
+		return 1;
+	}
 
 	// TODO: code parsing not implemented yet
 	if (msg.code) {
 		switch (*msg.code) {
 			// Certain messages we can discard for now.
 		}
+		queue_msg_in.push(msg);
 	}
 	else {
-		recvMsgQueue.push(msg);
+		if (msg.command == "PING") {
+			if (msg.params && msg.params->trailer) {
+				queue_msg_out_.push({"PONG", {*msg.params->trailer}, {}});
+				ev_msg_out_.send();
+			}
+		}
+		else
+			queue_msg_in.push(msg);
 	}
+	return 0;
 }
+
+}// namespace ircddb

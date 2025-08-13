@@ -25,6 +25,13 @@ software used: libev to handle listening for new events and connections.
 we must be able to handle multiple IRC databases. some database's data
 should be of a higher priority. the goal is to keep at least one v4 and
 v6 of each repeater in some big cache.
+NOTE: handling priority between different IRC databases will be almost
+impossible to do correctly. what should happen: if there is a result for
+a UR:, pointing to a dual-stack GATE, prefer IPv6.
+
+need to double check heuristics on IPv6. what if a repeater loses IPv6
+connection but is fine on v4? do the PINGs over IRC handle that?
+
 
 if we have all the IRC connections on one thread, it should be fine to
 use with a separate libev event loop. reading from the cache data
