@@ -28,8 +28,8 @@ std::string name_to_zone(const std::string& name)
 
 namespace ircddb {
 
-app::app(const std::string& cs, const std::vector<client_cfg>& configs, const std::string& database)
-	: done(false), error(false), loop_(), ev_msg_out(loop_)
+app::app(const std::string& cs, const std::vector<client_cfg>& configs, std::shared_ptr<lmdb::env> env, std::shared_ptr<lmdb::dbi> cs_rptr, std::shared_ptr<lmdb::dbi> zone_ip4, std::shared_ptr<lmdb::dbi> zone_ip6, std::shared_ptr<lmdb::dbi> zone_nick)
+	: done(false), error(false), loop_(), ev_msg_out(loop_), env_(env), cs_rptr_(cs_rptr), zone_ip4_(zone_ip4), zone_ip6_(zone_ip6), zone_nick_(zone_nick)
 {
 	callsign_ = str_tolower(cs);
 	// TODO: verify realname field

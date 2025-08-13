@@ -33,7 +33,12 @@ struct client_store {
 
 class app {
 public:
-	app(const std::string& callsign, const std::vector<client_cfg>& configs, const std::string& database);
+	app(const std::string& callsign, const std::vector<client_cfg>& configs,
+	    std::shared_ptr<lmdb::env> env,
+	    std::shared_ptr<lmdb::dbi> cs_rptr,
+	    std::shared_ptr<lmdb::dbi> zone_ip4,
+	    std::shared_ptr<lmdb::dbi> zone_ip6,
+	    std::shared_ptr<lmdb::dbi> zone_nick);
 	void run();
 
 	std::atomic_bool done;
