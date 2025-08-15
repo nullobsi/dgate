@@ -7,6 +7,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <atomic>
 
 namespace ircddb {
 
@@ -39,7 +40,7 @@ public:
 
 	void queue_msg(const irc_msg& msg);
 
-	client_state state;
+	std::atomic<client_state> state;
 	TQueue<irc_msg> queue_msg_in;
 
 	void run();

@@ -1,4 +1,5 @@
 #include "app.h"
+#include "ircddb/client.h"
 #include <algorithm>
 #include <cctype>
 #include <future>
@@ -62,6 +63,7 @@ void app::run()
 	std::vector<std::future<void>> futures;
 
 	for (const auto& c : clients_) {
+		c->watcher->start();
 		auto future = std::async(std::launch::async, [=]() {
 			if (!c->client->connect())
 				c->client->run();
@@ -70,6 +72,12 @@ void app::run()
 	}
 
 	loop_.run();
+}
+
+void app::cleanup() {
+	for (const auto& c : clients_) {
+		c->watcher->stop();
+	}
 }
 
 void app::queue_msg(const irc_msg& msg)
@@ -107,6 +115,9 @@ void app::msg_out(ev::async&, int)
 			for (std::vector<client>::size_type i = 0; i < clients_.size(); i++) {
 				clients_[i]->client->queue_msg(msg);
 			}
+		}
+		if (msg.command == "QUIT") {
+			cleanup();
 		}
 	}
 }

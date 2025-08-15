@@ -10,9 +10,11 @@ incdir = include_directories('src')
 
 dgate_src = [
   'src/dgate/main.cxx',
-  'src/ircddb/IRCClient.cxx',
-  'src/ircddb/IRCDDBApp.cxx',
-  'src/ircddb/IRCMessage.cxx',
+  'src/ircddb/app.cxx',
+  'src/ircddb/client.cxx',
+  'src/ircddb/irc_msg.cxx',
+  'src/dv/frame.cxx',
+  'src/dv/header.cxx',
 ]
 
 executable('dgate', dgate_src, dependencies : deps, include_directories : incdir)

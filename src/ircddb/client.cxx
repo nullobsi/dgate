@@ -1,4 +1,5 @@
 #include "client.h"
+#include "ircddb/client.h"
 #include "ircddb/irc_msg.h"
 #include <cerrno>
 #include <cstring>
@@ -98,6 +99,7 @@ void client::cleanup()
 	outBuffer_ = std::stringstream();
 	inBuffer_ = std::stringstream();
 	while (queue_msg_in.pop()) {}
+	if (state != ERRORED) state = CLOSED;
 }
 
 void client::queue_msg(const irc_msg& msg)
@@ -242,7 +244,13 @@ void client::msg_out(ev::async&, int)
 	while (auto msg = queue_msg_out_.pop()) {
 		if ((*msg).command == IRCMESSAGE_INVALID) continue;
 		std::cout << "Send message: " << *msg;
-		send_msg(msg->compose());
+		if (msg->command == "QUIT") {
+			cleanup();
+			state = client_state::CLOSED;
+		}
+		else {
+			send_msg(msg->compose());
+		}
 	}
 }
 

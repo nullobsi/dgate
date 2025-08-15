@@ -48,6 +48,8 @@ public:
 	void queue_msg(const irc_msg& msg);
 
 private:
+	void cleanup();
+
 	void msg_out(ev::async& w, int revents);
 	void msg_in(ev::async& w, int revents);
 

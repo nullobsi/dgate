@@ -42,11 +42,11 @@ static uint16_t crc_tab_ccitt_le[256] = {
 	0x3DE3U, 0x2C6AU, 0x1EF1U, 0x0F78U
 };
 
-uint16_t header::calc_crc()
+uint16_t header::calc_crc() const
 {
 	uint16_t crc = 0xFFFFU;
 
-	auto data = static_cast<uint8_t*>(&this->flags[0]);
+	const auto data = static_cast<const uint8_t*>(&this->flags[0]);
 
 	// The D-Star CRC for the header is little-endian CRC-CCITT with a
 	// starting value of 0xFFFF and ends by inverting the bits in the
@@ -70,7 +70,7 @@ void header::set_crc(uint16_t crc)
 	crc_ccitt[1] = msb;
 }
 
-uint16_t header::get_crc()
+uint16_t header::get_crc() const
 {
 	uint16_t lsb = crc_ccitt[0];
 	uint16_t msb = crc_ccitt[1];
@@ -81,7 +81,7 @@ uint16_t header::get_crc()
 	return msb | lsb;
 };
 
-bool header::verify()
+bool header::verify() const
 {
 	return get_crc() == calc_crc();
 }

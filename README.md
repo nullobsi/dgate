@@ -11,6 +11,10 @@ The main dgate process:
  - creates outgoing links from modules to other repeaters/reflectors
  - listens on an PF_UNIX/SOCK_SEQPACKET socket for connections
 
+to send recorded messages/reply to transmissions, it is probably best to
+have another thread that uses sleep_for to ensure timing is mostly
+adequate. probably use a mutex for storing state of "TXing".
+
 connections to the dgate process:
  - receive all module data
  - can send d-star packets to a module

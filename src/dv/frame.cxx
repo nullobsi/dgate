@@ -110,17 +110,17 @@ void ambefec_interleave(uint8_t out[9], const uint8_t in[9])
 	}
 }
 
-bool rf_frame::is_sync()
+bool rf_frame::is_sync() const
 {
 	return memcmp(rf_data_sync, data, 3) == 0;
 }
 
-bool frame::is_sync()
+bool frame::is_sync() const
 {
 	return memcmp(rf_data_sync, data, 3) == 0;
 }
 
-frame rf_frame::decode()
+frame rf_frame::decode() const
 {
 	frame f;
 
@@ -159,7 +159,7 @@ frame rf_frame::decode()
 	return f;
 }
 
-rf_frame frame::encode()
+rf_frame frame::encode() const
 {
 	rf_frame f;
 

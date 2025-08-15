@@ -39,7 +39,7 @@ struct rf_header {
 	// This should technically be 82.5 bytes.
 	uint8_t data[83];
 
-	header decode();
+	header decode() const;
 };
 #pragma pack(pop)
 
@@ -59,13 +59,13 @@ struct header {
 	// This value is transferred as a little-endian value.
 	uint8_t crc_ccitt[2];
 
-	uint16_t calc_crc();
+	uint16_t calc_crc() const;
 	void set_crc(uint16_t crc);
-	uint16_t get_crc();
+	uint16_t get_crc() const;
 
-	bool verify();
+	bool verify() const;
 
-	rf_header encode();
+	rf_header encode() const;
 };
 #pragma pack(pop)
 
@@ -78,8 +78,15 @@ struct rf_frame {
 	uint8_t ambe[9];// Proprietary AMBE data with FEC.
 	uint8_t data[3];// Scrambled data.
 
-	bool is_sync();
-	frame decode();
+	bool is_sync() const;
+	frame decode() const;
+};
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+struct rf_frame_end {
+	rf_frame f;
+	uint8_t end_seq[3];// Extra data sent at the end of a transmission.
 };
 #pragma pack(pop)
 
@@ -95,13 +102,14 @@ struct frame {
 
 	uint8_t bit_errors;// Number of bit errors from the process of decoding AMBE data.
 
-	bool is_sync();
-	rf_frame encode();
+	bool is_sync() const;
+	rf_frame encode() const;
 };
 
 static constexpr uint8_t rf_ambe_null[9] = {0x9EU, 0x8DU, 0x32U, 0x88U, 0x26U, 0x1AU, 0x3FU, 0x61U, 0xE8U};
 static constexpr uint8_t rf_data_null[3] = {0x70U, 0x4FU, 0x93U};
 static constexpr uint8_t rf_data_sync[3] = {0x55U, 0x2DU, 0x16U};
+static constexpr uint8_t rf_data_end[3] = {0x55, 0xC8, 0x7A};
 
 }// namespace dv
 
