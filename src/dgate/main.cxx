@@ -1,4 +1,5 @@
 #include "common/lmdb++.h"
+#include "dgate/app.h"
 #include "ircddb/app.h"
 #include <ev++.h>
 #include <iostream>
@@ -31,7 +32,9 @@ int main()
 		wtxn.commit();
 	}
 
-	ircddb::app app("u-KO6JXH", {{"ircv4.openquad.net", "", "#dstar", 9007, AF_INET}}, env, cs_rptr, zone_ip4, zone_ip6, zone_nick);
+	ircddb::app* ircapp = new ircddb::app("u-KO6JXH", {{"ircv4.openquad.net", "", "#dstar", 9007, AF_INET}}, env, cs_rptr, zone_ip4, zone_ip6, zone_nick);
+
+	dgate::app app("KO6JXH", {'C'}, std::unique_ptr<ircddb::app>(ircapp), env, cs_rptr, zone_ip4, zone_ip6, zone_nick);
 
 	app.run();
 }

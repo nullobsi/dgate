@@ -17,32 +17,39 @@ struct client_connection {
 	std::unique_ptr<ev::io> watcher;
 };
 
-
 struct tx_state {
-	char serial_buffer[512]; // used to decode D-PRS data
-	char tx_msg[21]; // might as well null-terminate this
+	char serial_buffer[512];// used to decode D-PRS data
+	char tx_msg[21];        // might as well null-terminate this
 	dv::header header;
 	sockaddr_storage from;
-	uint32_t count; // Total count of packets
-	uint8_t seqno; // D-star frame count (mod 21)
-	uint32_t bit_errors; // Number of bit errors detected
+	uint32_t count;     // Total count of packets
+	uint8_t seqno;      // D-star frame count (mod 21)
+	uint32_t bit_errors;// Number of bit errors detected
 	uint16_t tx_id;
 	uint8_t miniheader;
 	int serial_pointer;
 
-	uint8_t seqno_next();
 	void reset();
 };
 
+class app;
 struct module {
 	char name;
 	tx_state state;
 	std::shared_ptr<ev::timer> timeout;
-	std::function<void(ev_timer&,int)> timeout_cb;
+
+	// This is probably bad but I'm SO TIRED.
+	app* parent;
+
 	mutable std::atomic_flag tx_lock;
+
+
+	void operator()(ev::timer&, int);
 };
 
 class app {
+	friend module;
+
 public:
 	app(std::string cs, std::unordered_set<char> modules, std::unique_ptr<ircddb::app> ircddb,
 	    std::shared_ptr<lmdb::env> env, std::shared_ptr<lmdb::dbi> cs_rptr,
@@ -71,6 +78,8 @@ private:
 
 	void write_all_dgate(const packet& p, std::size_t len);
 
+	ev::dynamic_loop loop_;
+
 	std::string cs_;
 
 	int g2_sock_v4_;
@@ -78,8 +87,6 @@ private:
 	int dgate_sock_;
 
 	std::vector<client_connection> dgate_conns_;
-
-	ev::dynamic_loop loop_;
 
 	ev::io ev_g2_readable_v4_;
 	ev::io ev_g2_readable_v6_;

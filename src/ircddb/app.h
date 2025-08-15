@@ -25,7 +25,7 @@ struct client_cfg {
 struct client_store {
 	client_cfg cfg;
 	std::shared_ptr<ev::async> watcher;
-	std::unique_ptr<client> client;
+	std::unique_ptr<ircddb::client> client;
 	std::map<std::string, std::string> gate_nick;
 	std::string server_nick;
 	std::string current_nick;
@@ -65,10 +65,10 @@ private:
 
 	void get_all_gates(int id);
 
+	ev::dynamic_loop loop_;
+
 	std::string callsign_;
 	std::vector<std::shared_ptr<client_store>> clients_;
-
-	ev::dynamic_loop loop_;
 
 	// Fired when message added to queue.
 	ev::async ev_msg_out;

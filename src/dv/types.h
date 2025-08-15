@@ -109,7 +109,8 @@ struct frame {
 static constexpr uint8_t rf_ambe_null[9] = {0x9EU, 0x8DU, 0x32U, 0x88U, 0x26U, 0x1AU, 0x3FU, 0x61U, 0xE8U};
 static constexpr uint8_t rf_data_null[3] = {0x70U, 0x4FU, 0x93U};
 static constexpr uint8_t rf_data_sync[3] = {0x55U, 0x2DU, 0x16U};
-static constexpr uint8_t rf_data_end[3] = {0x55, 0xC8, 0x7A};
+static constexpr uint8_t rf_data_end[3] = {0x55U, 0x55U, 0x55U};
+static constexpr uint8_t rf_end[3] = {0x55, 0xC8, 0x7A};
 
 }// namespace dv
 

@@ -12,30 +12,38 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <regex>
+#include <string>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
 
 namespace dgate {
 
+void tx_state::reset()
+{
+	std::memset(this, 0, sizeof(*this));
+	seqno = 20;
+}
+
+void module::operator()(ev::timer&, int)
+{
+	parent->tx_timeout(name);
+};
+
 app::app(std::string cs, std::unordered_set<char> modules, std::unique_ptr<ircddb::app> ircddb,
          std::shared_ptr<lmdb::env> env, std::shared_ptr<lmdb::dbi> cs_rptr,
          std::shared_ptr<lmdb::dbi> zone_ip4, std::shared_ptr<lmdb::dbi> zone_ip6,
          std::shared_ptr<lmdb::dbi> zone_nick)
-	: cs_(cs), g2_sock_v4_(-1), g2_sock_v6_(-1), dgate_sock_(-1), loop_(),
+	: loop_(), cs_(cs), g2_sock_v4_(-1), g2_sock_v6_(-1), dgate_sock_(-1),
 	  ev_g2_readable_v4_(loop_), ev_g2_readable_v6_(loop_), ev_dgate_readable_(loop_),
 	  enabled_modules_(modules), ircddb_(std::move(ircddb)), env_(env),
 	  cs_rptr_(cs_rptr), zone_ip4_(zone_ip4), zone_ip6_(zone_ip6),
 	  zone_nick_(zone_nick)
 {
 	for (auto m : enabled_modules_) {
-		modules_[m] = std::make_unique<module>(
-				m, tx_state(), std::make_shared<ev::timer>(loop_),
-				std::function([m, this](ev_timer&, int) {
-					this->tx_timeout(m);
-				}));
-		modules_[m]->timeout->set(1.);// TODO: configurable
-		modules_[m]->timeout->set(&modules_[m]->timeout_cb);
+		modules_[m] = std::make_unique<module>(m, tx_state(), std::make_shared<ev::timer>(loop_), this);
+		modules_[m]->timeout->set(1., 1.);// TODO: configurable
+		modules_[m]->timeout->set(modules_[m].get());
 		modules_[m]->tx_lock.clear();
 	}
 	ev_g2_readable_v4_.set<app, &app::g2_readable_v4>(this);
@@ -158,9 +166,11 @@ void app::run()
 	fcntl(dgate_sock_, F_SETFL, O_NONBLOCK);
 
 	// Setup event handlers
-	ev_g2_readable_v6_.set(g2_sock_v6_, ev::READ);
-	ev_g2_readable_v4_.set(g2_sock_v4_, ev::READ);
-	ev_dgate_readable_.set(dgate_sock_, ev::READ);
+	ev_g2_readable_v6_.start(g2_sock_v6_, ev::READ);
+	ev_g2_readable_v4_.start(g2_sock_v4_, ev::READ);
+	ev_dgate_readable_.start(dgate_sock_, ev::READ);
+
+	std::cout << "Entering loop..." << std::endl;
 
 	loop_.run();
 }
@@ -235,11 +245,10 @@ void app::g2_handle_header(const g2_packet& p, size_t len, const sockaddr_storag
 		return;
 	}
 
-	modules_[dst]->timeout->start();
+	modules_[dst]->timeout->again();
 
 	// Reset info.
 	modules_[dst]->state.reset();
-
 
 	modules_[dst]->state.tx_id = p.streamid;
 	modules_[dst]->state.from = from;
@@ -265,26 +274,39 @@ void app::g2_handle_voice(const g2_packet& p, size_t len, const sockaddr_storage
 	auto id = p.streamid;
 	auto seqno = p.ctrl & 0x1FU;// The MSBs are used for signaling
 
+	char module = 0;
 	for (const auto& m : modules_) {
 		if (m.second->state.tx_id == id && m.second->tx_lock.test()) {
-			if (m.second->state.seqno_next() != (p.ctrl & 0x1FU)) {
-				std::cerr << "g2 " << id << ": packet received with wrong seqno?" << std::endl;
-				// TODO: fill in blanks with silence? hold a small (1-2
-				// frame) buffer to detect out of ordering?
-				m.second->state.seqno = ((int8_t)seqno - 1) % 21;
-			}
-			m.second->timeout->again();
-			handle_voice(p.frame, m.first);
-			return;
+			module = m.first;
+			break;
 		}
 	}
+
+	if (module == 0) return;
+	auto& mod = modules_[module];
+
+	if (p.ctrl & 0x40U) {// END voice packet
+		handle_voice_end(p.frame, module);
+		mod->tx_lock.clear();
+	}
+	else {
+		if (next_seqno(mod->state.seqno) != (p.ctrl & 0x1FU)) {
+			std::cerr << "g2 " << id << ": packet received with wrong seqno?" << std::endl;
+			// TODO: fill in blanks with silence? hold a small (1-2
+			// frame) buffer to detect out of ordering?
+			mod->state.seqno = prev_seqno(seqno);
+		}
+		mod->timeout->again();
+		handle_voice(p.frame, module);
+	}
+	return;
 }
 
 void app::handle_voice(const dv::rf_frame& v, char m)
 {
 	auto& state = modules_[m]->state;
 	state.count++;
-	state.seqno = state.seqno_next();
+	state.seqno = next_seqno(state.seqno);
 
 	// TODO: dv fast data shouldn't be decoded
 	auto f = v.decode();
@@ -368,7 +390,7 @@ void app::handle_voice_end(const dv::rf_frame& v, char m)
 {
 	auto& state = modules_[m]->state;
 	state.count++;
-	state.seqno = state.seqno_next();
+	state.seqno = next_seqno(state.seqno);
 
 	auto f = v.decode();
 	state.bit_errors += f.bit_errors;
@@ -379,7 +401,21 @@ void app::handle_voice_end(const dv::rf_frame& v, char m)
 	p.voice_end.count = state.count;
 	p.voice_end.bit_errors = state.bit_errors;
 	p.voice_end.id = state.tx_id;
-	p.voice.f = f.encode();
+	p.voice_end.f = f.encode();
+
+	std::cout << "END TX: " << std::to_string(state.bit_errors) << " " << std::to_string(state.count) << " " << std::to_string(state.tx_id) << std::endl;
+	std::cout.write(state.serial_buffer, state.serial_pointer);
+	std::cout << std::endl;
+	std::cout.write(state.header.own_cs, 8);
+	std::cout << "/";
+	std::cout.write(state.header.own_cs_ext, 4);
+	std::cout << " -> ";
+	std::cout.write(state.header.companion_cs, 8);
+	std::cout << " via ";
+	std::cout.write(state.header.destination_rptr_cs, 8);
+	std::cout << ", ";
+	std::cout.write(state.header.departure_rptr_cs, 8);
+	std::cout << std::endl;
 
 	write_all_dgate(p, packet_voice_end_size);
 }
@@ -403,11 +439,13 @@ void app::dgate_readable(ev::io&, int)
 		return;
 	}
 
+	std::cout << "Client connection accepted" << std::endl;
+
 	client_connection conn;
 	conn.fd = client_fd;
 	conn.watcher = std::make_unique<ev::io>(loop_);
-	conn.watcher->set(client_fd);
 	conn.watcher->set<app, &app::dgate_client_readable>(this);
+	conn.watcher->start(client_fd, ev::READ);
 
 	dgate_conns_.push_back(std::move(conn));
 }
@@ -458,15 +496,15 @@ void app::dgate_client_handle_packet(int i)
 		mod->state.reset();
 		mod->state.tx_id = p.header.id;
 
-		mod->timeout->start();
+		mod->timeout->again();
 		handle_header(p.header.h, p.module);
 	}
 	else if (count == packet_voice_size) {
 		if (mod->state.tx_id != p.voice.id) return;
-		if (p.voice.seqno != mod->state.seqno_next()) {
+		if (p.voice.seqno != next_seqno(mod->state.seqno)) {
 			std::cerr << "dgate_client_handle_packet(): voice packet with wrong seqno received" << std::endl;
 			// TODO: reconstruct?
-			mod->state.seqno = ((int8_t)p.voice.seqno - 1) % 21;
+			mod->state.seqno = prev_seqno(p.voice.seqno);
 		}
 
 		mod->timeout->again();
@@ -476,8 +514,53 @@ void app::dgate_client_handle_packet(int i)
 		if (mod->state.tx_id != p.voice.id) return;
 
 		handle_voice_end(p.voice_end.f, p.module);
+		mod->timeout->stop();
 		mod->tx_lock.clear();
+	} else {
+		std::cout << " unknown" << std::endl;
 	}
+
+}
+
+void app::write_all_dgate(const packet& p, std::size_t len)
+{
+	for (const auto& c : dgate_conns_) {
+		ssize_t count = write(c.fd, &p, len);
+		if (count == -1) {
+			int error = errno;
+			if (error == EAGAIN || error == EWOULDBLOCK) {
+				// We really don't like this...
+				// TODO: how prevalent? add send buffer?
+				std::cerr << "write_all_dgate(): write() returned EAGAIN" << std::endl;
+				continue;
+			}
+			std::cerr << "write_all_dgate(): closing, write(): ";
+			std::cerr << strerror(error) << std::endl;
+			continue;
+		}
+		if (count != (ssize_t)len) {
+			// WTF?
+			// TODO: should we quit the connection?
+			std::cerr << "write_all_dgate(): WTF, datagram partial write?" << std::endl;
+			continue;
+		}
+	}
+}
+
+void app::tx_timeout(char m)
+{
+	auto& mod = modules_[m];
+
+	std::cerr << "timeout module " << m << std::endl;
+
+	dv::rf_frame f;
+	std::memcpy(&f.ambe, dv::rf_ambe_null, sizeof(f.ambe));
+	std::memcpy(&f.data, dv::rf_data_end, sizeof(f.data));
+
+	handle_voice_end(f, m);
+
+	mod->timeout->stop();
+	mod->tx_lock.clear();
 }
 
 }// namespace dgate

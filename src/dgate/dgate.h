@@ -13,6 +13,13 @@ enum packet_type : uint8_t {
 
 static constexpr char packet_title[] = "DGTE";
 
+static inline constexpr uint8_t next_seqno(uint8_t in) {
+	return (in+1) % 21;
+}
+
+static inline constexpr uint8_t prev_seqno(int8_t in) {
+	return (in-1) % 21;
+}
 
 #pragma pack(push, 1)
 struct packet_voice {

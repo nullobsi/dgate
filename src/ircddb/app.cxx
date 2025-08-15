@@ -74,7 +74,8 @@ void app::run()
 	loop_.run();
 }
 
-void app::cleanup() {
+void app::cleanup()
+{
 	for (const auto& c : clients_) {
 		c->watcher->stop();
 	}
