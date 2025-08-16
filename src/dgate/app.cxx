@@ -288,6 +288,7 @@ void app::g2_handle_voice(const g2_packet& p, size_t len, const sockaddr_storage
 	if (p.ctrl & 0x40U) {// END voice packet
 		handle_voice_end(p.frame, module);
 		mod->tx_lock.clear();
+		mod->timeout->stop();
 	}
 	else {
 		if (next_seqno(mod->state.seqno) != (p.ctrl & 0x1FU)) {
@@ -341,7 +342,7 @@ void app::handle_voice(const dv::rf_frame& v, char m)
 		case dv::F_FASTDATA_2:
 			// TODO: determine this
 			break;
-		case dv::F_CSQL:
+		case dv::F_DSQL:
 			// TODO: this is probably not needed to be parsed
 			break;
 		}
@@ -367,7 +368,7 @@ void app::handle_voice(const dv::rf_frame& v, char m)
 		case dv::F_FASTDATA_2:
 			// TODO: determine this
 			break;
-		case dv::F_CSQL:
+		case dv::F_DSQL:
 			// TODO: this is probably not needed to be parsed
 			break;
 		}

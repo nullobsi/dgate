@@ -120,6 +120,16 @@ bool frame::is_sync() const
 	return memcmp(rf_data_sync, data, 3) == 0;
 }
 
+bool rf_frame::is_end() const
+{
+	return memcmp(rf_data_end, data, 3) == 0;
+}
+
+bool frame::is_end() const
+{
+	return memcmp(rf_data_end, data, 3) == 0;
+}
+
 frame rf_frame::decode() const
 {
 	frame f;
@@ -145,10 +155,10 @@ frame rf_frame::decode() const
 	std::memcpy(f.ambe, &deinterleaved[6], 3);
 	f.bit_errors = bit_errors;
 
-	if (is_sync()) {
+	if (is_sync() || is_end()) {
 		// We don't decode the sync frame, because it is excluded from
 		// scrambling.
-		std::memcpy(f.data, rf_data_sync, sizeof(f.data));
+		std::memcpy(f.data, data, sizeof(f.data));
 	}
 	else {
 		f.data[0] = this->data[0] ^ 0x70U;
@@ -179,10 +189,10 @@ rf_frame frame::encode() const
 
 	ambefec_interleave(f.ambe, deinterleaved);
 
-	if (is_sync()) {
+	if (is_sync() || is_end()) {
 		// We don't decode the sync frame, because it is excluded from
 		// scrambling.
-		std::memcpy(f.data, rf_data_sync, sizeof(f.data));
+		std::memcpy(f.data, data, sizeof(f.data));
 	}
 	else {
 		f.data[0] = this->data[0] ^ 0x70U;

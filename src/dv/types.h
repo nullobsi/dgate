@@ -27,7 +27,7 @@ enum miniheader_flags {
 	F_HEADER = 0x50,
 	F_FASTDATA_1 = 0x80,
 	F_FASTDATA_2 = 0x90,
-	F_CSQL = 0xC0,
+	F_DSQL = 0xC0,
 	F_EMPTY = 0x66,
 };
 
@@ -79,6 +79,7 @@ struct rf_frame {
 	uint8_t data[3];// Scrambled data.
 
 	bool is_sync() const;
+	bool is_end() const;
 	frame decode() const;
 };
 #pragma pack(pop)
@@ -103,14 +104,22 @@ struct frame {
 	uint8_t bit_errors;// Number of bit errors from the process of decoding AMBE data.
 
 	bool is_sync() const;
+	bool is_end() const;
 	rf_frame encode() const;
 };
 
 static constexpr uint8_t rf_ambe_null[9] = {0x9EU, 0x8DU, 0x32U, 0x88U, 0x26U, 0x1AU, 0x3FU, 0x61U, 0xE8U};
-static constexpr uint8_t rf_data_null[3] = {0x70U, 0x4FU, 0x93U};
+static constexpr uint8_t rf_data_scram[3] = {0x70U, 0x4FU, 0x93U};
+static constexpr uint8_t rf_data_null[3] = {F_EMPTY^0x70U, F_EMPTY^0x4FU, F_EMPTY^0x93U};
 static constexpr uint8_t rf_data_sync[3] = {0x55U, 0x2DU, 0x16U};
 static constexpr uint8_t rf_data_end[3] = {0x55U, 0x55U, 0x55U};
 static constexpr uint8_t rf_end[3] = {0x55, 0xC8, 0x7A};
+
+static inline constexpr void scram_data(uint8_t out[3], const uint8_t in[3]) {
+	out[0] = rf_data_scram[0]^in[0];
+	out[1] = rf_data_scram[1]^in[1];
+	out[2] = rf_data_scram[2]^in[2];
+}
 
 }// namespace dv
 
