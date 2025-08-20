@@ -1,3 +1,37 @@
+//
+// d-gate: d-star packet router <https://git.unix.dog/nullobsi/dgate/>
+// 
+// SPDX-FileCopyrightText: 2025 Juan Pablo Zendejas <nullobsi@unix.dog>
+// SPDX-License-Identifier: BSD-3-Clause
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are
+// met:
+//
+//   1. Redistributions of source code must retain the above copyright
+// notice, this list of conditions and the following disclaimer.
+//
+//   2. Redistributions in binary form must reproduce the above copyright
+// notice, this list of conditions and the following disclaimer in the
+// documentation and/or other materials provided with the distribution.
+//
+//   3. Neither the name of the copyright holder nor the names of its
+// contributors may be used to endorse or promote products derived from
+// this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+// IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+// TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+// PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+// HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+// TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+// PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+// LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+// NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//
+
 #include <cstdint>
 
 static constexpr uint16_t crc_tab_ccitt_le[256] = {
@@ -40,9 +74,7 @@ static constexpr uint16_t crc_tab_ccitt_le[256] = {
 	0x3DE3U, 0x2C6AU, 0x1EF1U, 0x0F78U
 };
 
-// These tables are lifted from QnetGateway
-
-static constexpr uint32_t ENCODING_TABLE_24128[] = {
+static constexpr uint32_t enc_tab_24128[] = {
 	0x000000U, 0x0018EBU, 0x00293EU, 0x0031D5U, 0x004A97U, 0x00527CU,
 	0x0063A9U, 0x007B42U, 0x008DC6U, 0x00952DU, 0x00A4F8U, 0x00BC13U,
 	0x00C751U, 0x00DFBAU, 0x00EE6FU, 0x00F684U, 0x010367U, 0x011B8CU,
@@ -728,7 +760,7 @@ static constexpr uint32_t ENCODING_TABLE_24128[] = {
 	0xFFCE2AU, 0xFFD6C1U, 0xFFE714U, 0xFFFFFFU,
 };
 
-static constexpr uint32_t DECODING_TABLE_23127[] = {
+static constexpr uint32_t dec_tab_23127[] = {
 	0x000000U, 0x000001U, 0x000002U, 0x000003U, 0x000004U, 0x000005U,
 	0x000006U, 0x000007U, 0x000008U, 0x000009U, 0x00000AU, 0x00000BU,
 	0x00000CU, 0x00000DU, 0x00000EU, 0x024020U, 0x000010U, 0x000011U,
@@ -1073,7 +1105,7 @@ static constexpr uint32_t DECODING_TABLE_23127[] = {
 	0x204200U, 0x028080U,
 };
 
-static constexpr uint32_t PRNG_TABLE[] =
+static constexpr uint32_t ambe_fec_prng_tab[] =
 {
 	0x42CC47U, 0x19D6FEU, 0x304729U, 0x6B2CD0U, 0x60BF47U, 0x39650EU,
 	0x7354F1U, 0xEACF60U, 0x819C9FU, 0xDE25CEU, 0xD7B745U, 0x8CC8B8U,

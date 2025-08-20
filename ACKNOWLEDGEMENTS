@@ -1,0 +1,18 @@
+Thank you to the open source community surrounding D-STAR, which has
+helped me immensely in understanding the D-STAR packet format.
+
+Thank you to the JARL for the publication and development of the D-STAR
+specification, which has been of great use to understand DV fast data,
+use of the data fields, D-PRS encoding, and the CRC encoding algorithm
+used.
+
+Thank you to to the APRS working group and Ian Wade, G3NRW for producing
+the APRS specification 1.0 PDF.
+
+Thank you to Thomas Early, N7TAE, and the QnetGateway software which
+provided a wonderful model for the structure of D-STAR gateway software.
+
+Thank you to Jonathan Naylor, G4KLX, for the IRCDDBgateway software.
+
+Thank you to IRCDDB and its creators for a really neat solution to the
+D-STAR callsign routing problem.

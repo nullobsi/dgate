@@ -1,0 +1,9 @@
+Unless otherwise specified, the code of d-gate is licensed under
+AGPL-3.0-or-later. Header files and code that is useful to manipulate
+D-STAR packet and data structures are licensed under BSD-3-Clause. In
+addition, there are some portions of code gratefully copied from Tom
+Early N7TAE's QnetGateway project. These are licensed under
+GPl-2.0-or-later, and I have opted to use the GPL-3.0-or-later license
+for AGPL compatibility.
+
+Please check the source code for relevant copyrights.

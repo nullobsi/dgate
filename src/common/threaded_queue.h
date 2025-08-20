@@ -1,6 +1,6 @@
 //
 // d-gate: d-star packet router <https://git.unix.dog/nullobsi/dgate/>
-// 
+//
 // SPDX-FileCopyrightText: 2025 Juan Pablo Zendejas <nullobsi@unix.dog>
 // SPDX-License-Identifier: BSD-3-Clause
 //
@@ -32,50 +32,53 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
-#include <array>
-#include <cstdint>
-#include <iomanip>
-#include <iostream>
-#include <string>
+#ifndef DGATE_THREADED_QUEUE_H
+#define DGATE_THREADED_QUEUE_H
 
-constexpr std::array<uint8_t, 41> data = {
-    0x00, 0x00, 0x00, 0x44, 0x49, 0x52, 0x45, 0x43, 0x54, 0x20, 0x20, 0x44, 0x49, 0x52, 0x45, 0x43, 
-    0x54, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x49, 0x4B, 0x4F, 0x36, 0x4A, 0x58, 
-    0x48, 0x20, 0x20, 0x35, 0x32, 0x50, 0x20, 0x04, 0x74, 
+#include <mutex>
+#include <optional>
+#include <queue>
+
+template<typename T>
+class threaded_queue {
+public:
+	threaded_queue() = default;
+	threaded_queue(const threaded_queue<T>&) = delete;
+	threaded_queue& operator=(const threaded_queue<T>&) = delete;
+
+	threaded_queue(threaded_queue<T>&& other)
+	{
+		std::lock_guard<std::mutex> lock(mutex);
+		queue = std::move(other.queue);
+	}
+
+	virtual ~threaded_queue() {}
+
+	typename std::queue<T>::size_type size() const
+	{
+		std::lock_guard<std::mutex> lock(mutex);
+		return queue.size();
+	}
+
+	std::optional<T> pop()
+	{
+		std::lock_guard<std::mutex> lock(mutex);
+		if (queue.empty()) return {};
+
+		T tmp = queue.front();
+		queue.pop();
+		return tmp;
+	}
+
+	void push(const T& i)
+	{
+		std::lock_guard<std::mutex> lock(mutex);
+		queue.push(i);
+	}
+
+private:
+	std::queue<T> queue;
+	mutable std::mutex mutex;
 };
 
-int main() {
-	uint16_t crc_tab_le[256] = {0};
-
-	uint16_t crc = 1;
-	int i = 128;
-
-	do {
-		if (crc & 1) {
-			crc = (crc >> 1) ^ 0x8408;
-		} else {
-			crc = (crc >> 1);
-		}
-		for (int j = 0; j < 256; j += 2*i) {
-			crc_tab_le[i+j] = crc ^ crc_tab_le[j];
-		}
-		i = i >> 1;
-	} while (i > 0);
-
-	// The D-Star CRC for the header is little-endian CRC-CCITT with a
-	// starting value of 0xFFFF and ends by 
-	crc = 0xFFFFU;
-	for (int i = 0; i < 39; i++) {
-		crc = (crc >> 8) ^ crc_tab_le[data[i] ^ (uint8_t)(crc & 0x00FF)];
-	}
-	crc = ~crc;
-	std::cout << crc << std::endl;
-
-	std::cout << std::setfill('0');
-	for (int i = 0; i < 256; i++) {
-		std::cout << std::internal << std::setw(6) << std::hex << std::showbase << std::uppercase << crc_tab_le[i] << "U, ";
-	}
-	std::cout << std::endl;
-	return 1;
-
-}
+#endif

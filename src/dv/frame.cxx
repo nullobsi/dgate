@@ -1,20 +1,56 @@
+//
+// d-gate: d-star packet router <https://git.unix.dog/nullobsi/dgate/>
+//
+// !! This file contains snippets of GPL-3 code.
+//
+// SPDX-FileCopyrightText: 2025 Juan Pablo Zendejas <nullobsi@unix.dog>
+// SPDX-License-Identifier: BSD-3-Clause
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are
+// met:
+//
+//   1. Redistributions of source code must retain the above copyright
+// notice, this list of conditions and the following disclaimer.
+//
+//   2. Redistributions in binary form must reproduce the above copyright
+// notice, this list of conditions and the following disclaimer in the
+// documentation and/or other materials provided with the distribution.
+//
+//   3. Neither the name of the copyright holder nor the names of its
+// contributors may be used to endorse or promote products derived from
+// this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+// IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+// TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+// PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+// HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+// TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+// PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+// LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+// NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//
+
 #include "frame.h"
 #include "tables.h"
 #include <bit>
 #include <cstring>
 
-// Thanks to QNetGateway and N7TAE for this code.
-#define interleaveambe12(bp)   \
-	{                          \
-		bp += 12;              \
-		if (bp > 71) bp -= 71; \
-	}
-#define GORLAY_X22 0x00400000   // vector representation of X^{22}
-#define GORLAY_X11 0x00000800   // vector representation of X^{11}
-#define GORLAY_MASK12 0xfffff800// auxiliary vector for testing
-#define GORLAY_GENPOL 0x00000c75// generator polinomial, g(x)
-
 namespace dv {
+
+// SPDX-SnippetBegin
+// SPDX-License-Identifier: BSD-3-Clause
+// SPDX-SnippetCopyrightText: 1994 Robert Morelos-Zaragoza
+// SPDX-SnippetName: golay decoding functions from golay32.c
+// SPDX-SnippetComment: https://www.eccpage.com/golay23.c (licensing changed to BSD by author later)
+
+#define GOLAY_X22 0x00400000   // vector representation of X^{22}
+#define GOLAY_X11 0x00000800   // vector representation of X^{11}
+#define GOLAY_MASK12 0xfffff800// auxiliary vector for testing
+#define GOLAY_GENPOL 0x00000c75// generator polinomial, g(x)
 
 /*
  * Compute the syndrome corresponding to the given pattern, i.e., the
@@ -28,35 +64,48 @@ namespace dv {
 
 uint16_t get_syndrome_23127(uint_fast32_t pattern)
 {
-	uint_fast32_t aux = GORLAY_X22;
-	if (pattern >= GORLAY_X11) {
-		while (pattern & GORLAY_MASK12) {
+	uint_fast32_t aux = GOLAY_X22;
+	if (pattern >= GOLAY_X11) {
+		while (pattern & GOLAY_MASK12) {
 			while ((aux & pattern) == 0) aux >>= 1;
-			pattern ^= (aux / GORLAY_X11) * GORLAY_GENPOL;
+			pattern ^= (aux / GOLAY_X11) * GOLAY_GENPOL;
 		}
 	}
 	return pattern;
 }
 
-uint16_t gorlay_decode23127(uint_fast32_t code, uint8_t& bit_errors_out)
+uint16_t golay_decode_23127(uint_fast32_t code, uint8_t& bit_errors_out)
 {
 	auto syndrome = get_syndrome_23127(code);
-	uint32_t error_pattern = DECODING_TABLE_23127[syndrome];
+	uint32_t error_pattern = dec_tab_23127[syndrome];
 	code ^= error_pattern;
 	bit_errors_out += std::popcount(error_pattern);
 	return (code >> 11);
 }
 
-uint32_t gorlay_encode24128(uint16_t data)
+uint32_t golay_encode_24128(uint16_t data)
 {
-	return ENCODING_TABLE_24128[data];
+	return enc_tab_24128[data];
 }
 
-uint16_t gorlay_decode24128(uint_fast32_t code, uint8_t& bit_errors_out)
+uint16_t golay_decode_24128(uint_fast32_t code, uint8_t& bit_errors_out)
 {
 	// Discard the parity bit, and try error correction anyway.
-	return gorlay_decode23127(code >> 1, bit_errors_out);
+	return golay_decode_23127(code >> 1, bit_errors_out);
 }
+
+// SPDX-SnippetEnd
+
+// SPDX-SnippetBegin
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-SnippetCopyrightText: 2020 by Thomas Early N7TAE
+// SPDX-SnippetName: ambefec (de)interleave functions from QnetGateway
+
+#define interleaveambe12(bp)   \
+	{                          \
+		bp += 12;              \
+		if (bp > 71) bp -= 71; \
+	}
 
 void ambefec_deinterleave(uint8_t out[9], const uint8_t in[9])
 {
@@ -110,6 +159,8 @@ void ambefec_interleave(uint8_t out[9], const uint8_t in[9])
 	}
 }
 
+// SPDX-SnippetEnd
+
 bool rf_frame::is_sync() const
 {
 	return memcmp(rf_data_sync, data, 3) == 0;
@@ -144,7 +195,7 @@ frame rf_frame::decode() const
 {
 	frame f;
 
-	// The original AMBE frames after decoding the Gorlay code.
+	// The original AMBE frames after decoding the Golay code.
 	// They're 16 bit values, but technically only 12 bits are used.
 	uint_fast16_t decoded_ambe_1;
 	uint_fast16_t decoded_ambe_2;
@@ -153,10 +204,10 @@ frame rf_frame::decode() const
 	uint8_t deinterleaved[9];
 	ambefec_deinterleave(deinterleaved, this->ambe);
 
-	decoded_ambe_1 = gorlay_decode24128((deinterleaved[0] << 16) | (deinterleaved[1] << 8) | deinterleaved[2], bit_errors);
+	decoded_ambe_1 = golay_decode_24128((deinterleaved[0] << 16) | (deinterleaved[1] << 8) | deinterleaved[2], bit_errors);
 
-	uint_fast32_t prng_xor = PRNG_TABLE[decoded_ambe_1];
-	decoded_ambe_2 = gorlay_decode24128(((deinterleaved[3] << 16) | (deinterleaved[4] << 8) | deinterleaved[5]) ^ prng_xor, bit_errors);
+	uint_fast32_t prng_xor = ambe_fec_prng_tab[decoded_ambe_1];
+	decoded_ambe_2 = golay_decode_24128(((deinterleaved[3] << 16) | (deinterleaved[4] << 8) | deinterleaved[5]) ^ prng_xor, bit_errors);
 
 	// TODO: Find other people who store decoded AMBE frames. How do
 	// they pack it after decoding?
@@ -193,8 +244,8 @@ rf_frame frame::encode() const
 
 	std::memcpy(&deinterleaved[6], &ambe[0], 3);
 
-	encoded_ambe_2 = gorlay_encode24128(ambe_decode_2) ^ PRNG_TABLE[ambe_decode_1];
-	encoded_ambe_1 = gorlay_encode24128(ambe_decode_1);
+	encoded_ambe_2 = golay_encode_24128(ambe_decode_2) ^ ambe_fec_prng_tab[ambe_decode_1];
+	encoded_ambe_1 = golay_encode_24128(ambe_decode_1);
 	deinterleaved[0] = (encoded_ambe_1 >> 16) & 0xFFU;
 	deinterleaved[1] = (encoded_ambe_1 >> 8) & 0xFFU;
 	deinterleaved[2] = (encoded_ambe_1) & 0xFFU;
