@@ -1,56 +1,42 @@
-# D-Gate
-d-star gateway/repeater software
+# d-gate
 
-## Architecture
+d-gate is a "D-STAR packet router." The main process, dgate, listens on
+a UNIX domain socket and accepts connections. Client programs can
+exchange D-STAR packets on arbitrary modules, facilitating the
+development and extension of repeater, gateway, and hotspot software. In
+this sense, d-gate could also be considered an IPC software.
 
-The main dgate process:
- - accepts command line arguments or config file
- - handles ircDDB connections
- - handles incoming callsign routing or link requests
- - supports arbitary modules (A/B/C..)
- - creates outgoing links from modules to other repeaters/reflectors
- - listens on an PF_UNIX/SOCK_SEQPACKET socket for connections
+# Usage
 
-to send recorded messages/reply to transmissions, it is probably best to
-have another thread that uses sleep_for to ensure timing is mostly
-adequate. probably use a mutex for storing state of "TXing".
+d-gate is not fully ready yet. the source code needs to be changed to
+configure it.
 
-connections to the dgate process:
- - receive all module data
- - can send d-star packets to a module
- - can control certain features of d-gate
+d-gate only requires `libev` and `lmdb`. Use `meson` to compile:
 
-sub-processes connect to the dgate process and adapt d-star data to a
-d-star repeater, MMDVM, modem, HT with access point/terminal mode, etc.
+```
+meson setup builddir
+cd builddir
+meson compile
+```
 
-software used: libev to handle listening for new events and connections.
+First run the `dgate` process, then any d-gate software you want.
 
-### IRC handling
-we must be able to handle multiple IRC databases. some database's data
-should be of a higher priority. the goal is to keep at least one v4 and
-v6 of each repeater in some big cache.
-NOTE: handling priority between different IRC databases will be almost
-impossible to do correctly. what should happen: if there is a result for
-a UR:, pointing to a dual-stack GATE, prefer IPv6.
+# Included d-gate software
 
-need to double check heuristics on IPv6. what if a repeater loses IPv6
-connection but is fine on v4? do the PINGs over IRC handle that?
+## d-link
+d-link will support linking to DExtra, DCS, and DPlus reflectors and
+repeaters. It can be configured to accept DV on any number of modules.
 
+## d-itap
+d-itap will support ICOM radios' Terminal/Access Point modes via USB
+serial or Bluetooth. Any number of instances can be linked to a module,
+allowing quick exchange of D-STAR voice over any link.
 
-if we have all the IRC connections on one thread, it should be fine to
-use with a separate libev event loop. reading from the cache data
-structure should be thread-safe.
+## d-ircddb
+d-ircddb will support callsign routing on the QuadNet IRCDDB network. It
+will listen for incoming callsign routing requests on port 9001/40000
+and send the DV to the corresponding module with the desired user.
 
-probably use an std::map with std::shared_mutex. consider deadlocks that
-could happen, though it seems unlikely if only one thread (main IRC
-thread) will write to it.
-
-## Goals
- - standards-conformant C/C++
- - performant yet extensible
- - use a simple protocol to allow easy creation of interesting programs
-   that connect to d-gate
- - run on BSDs, Linux, and other UNIX-likes
- - easy enough to run for Terminal Mode, but reliable enough to be used
-   on a repeater
-
+# TODO
+Implement software for ICOM repeaters, and test the software in the wild
+to find edge cases that break it.
