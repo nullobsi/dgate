@@ -6,6 +6,7 @@
 #include <cstring>
 #include <ev++.h>
 #include <fcntl.h>
+#include <iomanip>
 #include <iostream>
 #include <iterator>
 #include <memory>
@@ -23,12 +24,13 @@ void tx_state::reset()
 {
 	std::memset(this, 0, sizeof(*this));
 	seqno = 20;
+	local = false;
 }
 
 void module::operator()(ev::timer&, int)
 {
 	parent->tx_timeout(name);
-};
+}
 
 app::app(std::string cs, std::unordered_set<char> modules, std::unique_ptr<ircddb::app> ircddb,
          std::shared_ptr<lmdb::env> env, std::shared_ptr<lmdb::dbi> cs_rptr,
@@ -40,31 +42,71 @@ app::app(std::string cs, std::unordered_set<char> modules, std::unique_ptr<ircdd
 	  cs_rptr_(cs_rptr), zone_ip4_(zone_ip4), zone_ip6_(zone_ip6),
 	  zone_nick_(zone_nick)
 {
+	cs_.resize(8, ' ');
 	for (auto m : enabled_modules_) {
-		modules_[m] = std::make_unique<module>(m, tx_state(), std::make_shared<ev::timer>(loop_), this);
+		modules_[m] = std::make_unique<module>(this, m, tx_state(), std::make_shared<ev::timer>(loop_));
 		modules_[m]->timeout->set(1., 1.);// TODO: configurable
 		modules_[m]->timeout->set(modules_[m].get());
 		modules_[m]->tx_lock.clear();
 	}
-	ev_g2_readable_v4_.set<app, &app::g2_readable_v4>(this);
 	ev_g2_readable_v6_.set<app, &app::g2_readable_v6>(this);
+	ev_g2_readable_v4_.set<app, &app::g2_readable_v4>(this);
+
 	ev_dgate_readable_.set<app, &app::dgate_readable>(this);
 }
 
+static inline constexpr void try_close(int& fd)
+{
+	if (fd != -1) {
+		close(fd);
+		fd = -1;
+	}
+}
 void app::unbind_all()
 {
-	if (g2_sock_v6_ != -1) {
-		close(g2_sock_v6_);
-		g2_sock_v6_ = -1;
+	try_close(g2_sock_v6_);
+	try_close(g2_sock_v4_);
+
+	try_close(dgate_sock_);
+}
+
+static inline int try_create_socket(const char* port, int family, int* fd)
+{
+	int error;
+	struct addrinfo hints;
+	struct addrinfo* servinfo = nullptr;
+
+	// Listen to v6 socket
+	std::memset(&hints, 0, sizeof(hints));
+	hints.ai_family = family;
+	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_flags = AI_PASSIVE;
+
+	error = getaddrinfo(nullptr, port, &hints, &servinfo);
+	if (error) {
+		std::cerr << "gai error: " << gai_strerror(error) << std::endl;
+		if (servinfo != nullptr)
+			freeaddrinfo(servinfo);
+		return -1;
 	}
-	if (g2_sock_v4_ != -1) {
-		close(g2_sock_v4_);
-		g2_sock_v4_ = -1;
+
+	*fd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
+	error = errno;
+	freeaddrinfo(servinfo);
+
+	if (*fd == -1) {
+		std::cerr << "dgate: socket(): could not create socket: ";
+		std::cerr << strerror(error) << std::endl;
+		return -1;
 	}
-	if (dgate_sock_ != -1) {
-		close(dgate_sock_);
-		dgate_sock_ = -1;
+
+	if (family == AF_INET6) {
+		// do NOT hybrid bind
+		int sockopt = 1;
+		setsockopt(*fd, IPPROTO_IPV6, IPV6_V6ONLY, &sockopt, sizeof(sockopt));
 	}
+
+	return 0;
 }
 
 void app::run()
@@ -72,56 +114,15 @@ void app::run()
 	// TODO: add option to choose v4/v6, and listening IPs
 
 	int error;
-	struct addrinfo hints;
-	struct addrinfo* servinfo = nullptr;
 
-	// Listen to v6 socket
-	std::memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_INET6;
-	hints.ai_socktype = SOCK_DGRAM;
-	hints.ai_flags = AI_PASSIVE;
-
-	error = getaddrinfo(nullptr, "9011", &hints, &servinfo);
+	error = try_create_socket("9011", AF_INET6, &g2_sock_v6_);
 	if (error) {
-		std::cerr << "gai error: " << gai_strerror(error) << std::endl;
-		if (servinfo != nullptr)
-			freeaddrinfo(servinfo);
-		return;
-	}
-
-	g2_sock_v6_ = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
-	error = errno;
-	freeaddrinfo(servinfo);
-
-	if (g2_sock_v6_ == -1) {
-		std::cerr << "dgate: socket(): could not create v6 socket: ";
-		std::cerr << strerror(error) << std::endl;
 		unbind_all();
 		return;
 	}
 
-	// do NOT hybrid bind
-	int sockopt = 1;
-	setsockopt(g2_sock_v6_, IPPROTO_IPV6, IPV6_V6ONLY, &sockopt, sizeof(sockopt));
-
-	// Listen to v4 socket
-	hints.ai_family = AF_INET;
-	error = getaddrinfo(nullptr, "40000", &hints, &servinfo);
+	error = try_create_socket("40000", AF_INET, &g2_sock_v4_);
 	if (error) {
-		std::cerr << "gai error: " << gai_strerror(error) << std::endl;
-		if (servinfo != nullptr)
-			freeaddrinfo(servinfo);
-		unbind_all();
-		return;
-	}
-
-	g2_sock_v4_ = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
-	error = errno;
-	freeaddrinfo(servinfo);
-
-	if (g2_sock_v4_ == -1) {
-		std::cerr << "dgate: socket(): could not create v4 socket: ";
-		std::cerr << strerror(error) << std::endl;
 		unbind_all();
 		return;
 	}
@@ -163,11 +164,13 @@ void app::run()
 	// Set O_NONBLOCK
 	fcntl(g2_sock_v6_, F_SETFL, O_NONBLOCK);
 	fcntl(g2_sock_v4_, F_SETFL, O_NONBLOCK);
+
 	fcntl(dgate_sock_, F_SETFL, O_NONBLOCK);
 
 	// Setup event handlers
 	ev_g2_readable_v6_.start(g2_sock_v6_, ev::READ);
 	ev_g2_readable_v4_.start(g2_sock_v4_, ev::READ);
+
 	ev_dgate_readable_.start(dgate_sock_, ev::READ);
 
 	std::cout << "Entering loop..." << std::endl;
@@ -266,6 +269,8 @@ void app::handle_header(const dv::header& h, char m)
 	p.header.id = modules_[m]->state.tx_id;
 	p.header.h = h;
 
+	if (modules_[m]->state.local) p.flags = P_LOCAL;
+
 	write_all_dgate(p, packet_header_size);
 }
 
@@ -318,9 +323,11 @@ void app::handle_voice(const dv::rf_frame& v, char m)
 		std::cerr << "module " << m << " is not seqno 0 but sync data frame received" << std::endl;
 		state.seqno = 0;
 	}
+	//std::cout << f.data << " ";
 
 	// Parse miniheader if needed.
-	if (state.seqno % 2 == 1) {
+	bool dont_parse = f.is_end() || f.is_preend() || f.is_sync();
+	if (!dont_parse && state.seqno % 2 == 1) {
 		state.miniheader = f.data[0];
 		// The MSB 4 bits determine the type of data.
 		int i;
@@ -347,7 +354,7 @@ void app::handle_voice(const dv::rf_frame& v, char m)
 			break;
 		}
 	}
-	else if (state.seqno > 0 && state.seqno % 2 == 0) {
+	else if (!dont_parse && state.seqno > 0 && state.seqno % 2 == 0) {
 		int i;
 		switch (state.miniheader & 0xF0U) {
 		case dv::F_DATA:
@@ -372,9 +379,10 @@ void app::handle_voice(const dv::rf_frame& v, char m)
 			// TODO: this is probably not needed to be parsed
 			break;
 		}
+		state.miniheader = 0;
 	}
 
-	auto reconstructed = f.encode();
+	auto r = f.encode();
 	packet p;
 
 	p.type = P_VOICE;
@@ -382,7 +390,13 @@ void app::handle_voice(const dv::rf_frame& v, char m)
 	p.voice.count = state.count;
 	p.voice.id = state.tx_id;
 	p.voice.seqno = state.seqno;
-	p.voice.f = reconstructed;
+	p.voice.f = r;
+	if (state.local) p.flags = P_LOCAL;
+
+	std::cout << std::setw(2) << std::hex << std::internal << (uint64_t)(r.data[0]^0x70U) << " ";
+	std::cout << std::setw(2) << std::hex << std::internal << (uint64_t)(r.data[1]^0x4FU) << " ";
+	std::cout << std::setw(2) << std::hex << std::internal << (uint64_t)(r.data[2]^0x93U) << " ";
+	std::cout << std::endl;
 
 	write_all_dgate(p, packet_voice_size);
 }
@@ -403,9 +417,12 @@ void app::handle_voice_end(const dv::rf_frame& v, char m)
 	p.voice_end.bit_errors = state.bit_errors;
 	p.voice_end.id = state.tx_id;
 	p.voice_end.f = f.encode();
+	if (state.local) p.flags = P_LOCAL;
 
 	std::cout << "END TX: " << std::to_string(state.bit_errors) << " " << std::to_string(state.count) << " " << std::to_string(state.tx_id) << std::endl;
 	std::cout.write(state.serial_buffer, state.serial_pointer);
+	std::cout << std::endl;
+	std::cout.write(state.tx_msg, 20);
 	std::cout << std::endl;
 	std::cout.write(state.header.own_cs, 8);
 	std::cout << "/";
@@ -496,12 +513,13 @@ void app::dgate_client_handle_packet(int i)
 		if (mod->tx_lock.test_and_set()) return;
 		mod->state.reset();
 		mod->state.tx_id = p.header.id;
+		mod->state.local = p.flags & P_LOCAL;
 
 		mod->timeout->again();
 		handle_header(p.header.h, p.module);
 	}
 	else if (count == packet_voice_size) {
-		if (mod->state.tx_id != p.voice.id) return;
+		if (mod->state.tx_id != p.voice.id || !mod->tx_lock.test()) return;
 		if (p.voice.seqno != next_seqno(mod->state.seqno)) {
 			std::cerr << "dgate_client_handle_packet(): voice packet with wrong seqno received" << std::endl;
 			// TODO: reconstruct?
@@ -512,15 +530,15 @@ void app::dgate_client_handle_packet(int i)
 		handle_voice(p.voice.f, p.module);
 	}
 	else if (count == packet_voice_end_size) {
-		if (mod->state.tx_id != p.voice.id) return;
+		if (mod->state.tx_id != p.voice.id || !mod->tx_lock.test()) return;
 
 		handle_voice_end(p.voice_end.f, p.module);
 		mod->timeout->stop();
 		mod->tx_lock.clear();
-	} else {
+	}
+	else {
 		std::cout << " unknown" << std::endl;
 	}
-
 }
 
 void app::write_all_dgate(const packet& p, std::size_t len)
@@ -556,7 +574,14 @@ void app::tx_timeout(char m)
 
 	dv::rf_frame f;
 	std::memcpy(&f.ambe, dv::rf_ambe_null, sizeof(f.ambe));
-	std::memcpy(&f.data, dv::rf_data_end, sizeof(f.data));
+	std::memcpy(&f.data, dv::rf_data_preend, sizeof(f.data));
+
+	handle_voice(f, m);
+
+	std::memcpy(&f.ambe, dv::rf_ambe_end, sizeof(f.ambe));
+	f.data[0] = 0;
+	f.data[1] = 0;
+	f.data[2] = 0;
 
 	handle_voice_end(f, m);
 

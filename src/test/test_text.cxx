@@ -60,7 +60,7 @@ constexpr std::array<uint8_t, 588> data = {
 int main() {
 	int num_frames = data.size() / 12;
 
-	char tx_msg[20] = {0};
+	char tx_msg[21] = {0};
 	char aprs[1024] = {0};
 
 	int txi = 0;
@@ -79,6 +79,7 @@ int main() {
 		std::cout << std::setw(2) << std::hex << std::internal << (int)fd.data[1] << " ";
 		std::cout << std::setw(2) << std::hex << std::internal << (int)fd.data[2] << " ";
 		std::cout << std::endl;
+		if (fd.is_end() || fd.is_preend() || fd.is_sync()) continue;
 		if (in_tx_msg) {
 			std::memcpy(&tx_msg[txi], fd.data, 3);
 			txi += 3;

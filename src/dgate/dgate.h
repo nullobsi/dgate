@@ -11,6 +11,10 @@ enum packet_type : uint8_t {
 	P_HEADER = 0x10U,
 };
 
+enum packet_flags : uint8_t {
+	P_LOCAL = 0x01U,
+};
+
 static constexpr char packet_title[] = "DGTE";
 
 static inline constexpr uint8_t next_seqno(uint8_t in) {
@@ -24,8 +28,8 @@ static inline constexpr uint8_t prev_seqno(int8_t in) {
 #pragma pack(push, 1)
 struct packet_voice {
 	uint16_t id;
-	uint8_t seqno;
 	uint8_t count;
+	uint8_t seqno;
 	dv::rf_frame f;
 };
 
@@ -45,6 +49,8 @@ struct packet {
 	char title[4];// DGTE
 	char module;
 	packet_type type;
+	packet_flags flags;
+	uint8_t reserved_; // unused
 	union {
 		packet_voice voice;
 		packet_voice_end voice_end;
@@ -55,9 +61,9 @@ struct packet {
 };
 #pragma pack(pop)
 
-static constexpr std::size_t packet_voice_size = 6 + sizeof(packet_voice);
-static constexpr std::size_t packet_voice_end_size = 6 + sizeof(packet_voice_end);
-static constexpr std::size_t packet_header_size = 6 + sizeof(packet_header);
+static constexpr std::size_t packet_voice_size = 8 + sizeof(packet_voice);
+static constexpr std::size_t packet_voice_end_size = 8 + sizeof(packet_voice_end);
+static constexpr std::size_t packet_header_size = 8 + sizeof(packet_header);
 
 }// namespace dgate
 

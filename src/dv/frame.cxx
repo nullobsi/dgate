@@ -120,14 +120,22 @@ bool frame::is_sync() const
 	return memcmp(rf_data_sync, data, 3) == 0;
 }
 
+bool rf_frame::is_preend() const {
+	return memcmp(rf_data_preend, data, 3) == 0;
+}
+
+bool frame::is_preend() const {
+	return memcmp(rf_data_preend, data, 3) == 0;
+}
+
 bool rf_frame::is_end() const
 {
-	return memcmp(rf_data_end, data, 3) == 0;
+	return memcmp(rf_ambe_end, ambe, 9) == 0;
 }
 
 bool frame::is_end() const
 {
-	return memcmp(rf_data_end, data, 3) == 0;
+	return ambe_decode_1 == 0 && ambe_decode_2 == 0 && memcmp(rf_ambe_end, ambe, 3) == 0;
 }
 
 frame rf_frame::decode() const
@@ -141,7 +149,7 @@ frame rf_frame::decode() const
 	uint8_t bit_errors = 0;
 
 	uint8_t deinterleaved[9];
-	ambefec_deinterleave(deinterleaved, ambe);
+	ambefec_deinterleave(deinterleaved, this->ambe);
 
 	decoded_ambe_1 = gorlay_decode24128((deinterleaved[0] << 16) | (deinterleaved[1] << 8) | deinterleaved[2], bit_errors);
 
@@ -155,15 +163,20 @@ frame rf_frame::decode() const
 	std::memcpy(f.ambe, &deinterleaved[6], 3);
 	f.bit_errors = bit_errors;
 
-	if (is_sync() || is_end()) {
+	if (is_sync() || is_preend()) {
 		// We don't decode the sync frame, because it is excluded from
 		// scrambling.
-		std::memcpy(f.data, data, sizeof(f.data));
+		std::memcpy(f.data, this->data, 3);
+	}
+	else if (is_end()) {
+		std::memcpy(f.data, this->data, 3);
+		std::memcpy(f.ambe, rf_ambe_end, 3);
+		f.ambe_decode_1 = 0;
+		f.ambe_decode_2 = 0;
+		f.bit_errors = 0;
 	}
 	else {
-		f.data[0] = this->data[0] ^ 0x70U;
-		f.data[1] = this->data[1] ^ 0x4FU;
-		f.data[2] = this->data[2] ^ 0x93U;
+		scram_data((uint8_t*)f.data, this->data);
 	}
 
 	return f;
@@ -189,15 +202,16 @@ rf_frame frame::encode() const
 
 	ambefec_interleave(f.ambe, deinterleaved);
 
-	if (is_sync() || is_end()) {
+	if (is_sync() || is_preend()) {
 		// We don't decode the sync frame, because it is excluded from
 		// scrambling.
 		std::memcpy(f.data, data, sizeof(f.data));
+	} else if (is_end()) {
+		std::memcpy(f.data, data, sizeof(f.data));
+		std::memcpy(f.ambe, rf_ambe_end, sizeof(f.ambe));
 	}
 	else {
-		f.data[0] = this->data[0] ^ 0x70U;
-		f.data[1] = this->data[1] ^ 0x4FU;
-		f.data[2] = this->data[2] ^ 0x93U;
+		scram_data(f.data, (uint8_t*)this->data);
 	}
 
 	return f;

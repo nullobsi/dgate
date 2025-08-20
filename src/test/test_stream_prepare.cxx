@@ -1,6 +1,7 @@
 #include "dgate/dgate.h"
 #include "dv/stream.h"
 #include "dv/types.h"
+#include "dv/aprs.h"
 #include <cerrno>
 #include <cstring>
 #include <iostream>
@@ -14,6 +15,7 @@
 #include <array>
 
 using namespace std::chrono_literals;
+using namespace std::string_literals;
 
 int main() {
 	dv::header h;
@@ -21,19 +23,21 @@ int main() {
 	h.flags[1] = 0;
 	h.flags[2] = 0;
 
-	std::memcpy(h.destination_rptr_cs, "DIRECT  ", 8);
-	std::memcpy(h.departure_rptr_cs, "DIRECT  ", 8);
-	std::memcpy(h.companion_cs, "       I", 8);
-	std::memcpy(h.own_cs, "KO6JXH  ", 8);
+	std::memcpy(h.destination_rptr_cs, "KO6JXH C", 8);
+	std::memcpy(h.departure_rptr_cs, "KO6JXH G", 8);
+	std::memcpy(h.companion_cs, "CQCQCQ  ", 8);
+	std::memcpy(h.own_cs, "KPBS    ", 8);
 	std::memcpy(h.own_cs_ext, "52P ", 4);
 
-	h.crc_ccitt[0] = 0x04;
-	h.crc_ccitt[1] = 0x74;
+	h.set_crc(h.calc_crc());
 
 	dv::stream s;
 	s.header = h;
-	s.tx_msg = "This is a TX message."; // will get cut off
-	s.serial_data ="$$CRC1FC0,KO6JXH-7>API52,DSTAR*:/141625z3239.47N/11657.79W[179/000/J.P. HT ID-52PLUS\r";
+	s.tx_msg = "TEST TX"; // will get cut off
+	s.serial_data = dv::encode_aprs_string("KPBS-0>API52,DSTAR*:!3241.78N/11703.84W[/TESTING APRS\r");
+	//s.serial_data = "random unimportant serial data";
+	// s.serial_data ="$$CRC75C8,KO6JXH-7>API52,DSTAR*:/200141z3239.44N/11657.83W[349/000/A=000694J.P. HT ID-52PLUS\r"s;
+
 	s.prepare();
 
 	sockaddr_un addr;
@@ -53,6 +57,7 @@ int main() {
 	p.type = dgate::P_HEADER;
 	p.header.id = 0xBEEF;
 	p.header.h = h;
+	p.flags = dgate::P_LOCAL;
 
 	write(fd, &p, dgate::packet_header_size);
 	int count = read(fd, &pout, dgate::packet_header_size);
@@ -74,15 +79,15 @@ int main() {
 	}
 	std::cout << std::endl;
 
-	int tmp = p.voice.count;
+	int tmp = pout.voice.count;
 
 	p.type = dgate::P_VOICE_END;
 	p.voice_end.bit_errors = 0;
-	p.voice_end.count = tmp;
+	p.voice_end.count = tmp+1;
 	p.voice_end.id = 0xBEEF;
 
 	std::memcpy(&p.voice_end.f, &s.frames[s.frames.size()-1], 12);
 	write(fd, &p, dgate::packet_voice_end_size);
 	count = read(fd, &pout, dgate::packet_voice_end_size);
-	std::cout << std::to_string(count) << " " << std::to_string(pout.voice_end.bit_errors) << std::endl;
+	std::cout << std::to_string(pout.voice_end.count) << " " << std::to_string(pout.voice_end.bit_errors) << std::endl;
 }

@@ -43,8 +43,9 @@ void stream::prepare()
 	}
 	min_frames += num_syncs;
 
-	// Finally, add the final end frame
-	min_frames++;
+	// Get rid of ending frames (we will add ourselves.)
+	if (frames.size() > 0 && frames[frames.size() - 1].is_end()) frames.pop_back();
+	std::optional<dv::rf_frame> preend_voice = {};
 
 	// Excluding the sync frame, for these transmissions, we'd like the
 	// length to be a multiple of two for the segments.
@@ -52,13 +53,11 @@ void stream::prepare()
 	if (cur_size > min_frames) {
 		cur_size = cur_size % 21;
 		if (cur_size > 0) cur_size = cur_size - 1;
-		// Uneven number! Note: if the last frame is an end frame, we
-		// don't really care about it.
-		if (cur_size % 2 == 1 && !frames[frames.size() - 1].is_end()) {
-			// Add an empty frame to pad out.
-			rf_frame f;
-			std::memcpy(&f.ambe, dv::rf_ambe_null, sizeof(f.ambe));
-			frames.push_back(f);
+		// Uneven number!
+		if (cur_size % 2 == 1) {
+			// Store this voice data for retransmission.
+			preend_voice = frames[frames.size() - 1];
+			frames.pop_back();
 		}
 	}
 	else if (cur_size < min_frames) {
@@ -72,7 +71,7 @@ void stream::prepare()
 
 	uint8_t buf[3];
 	std::vector<dv::rf_frame>::size_type i;
-	for (i = 0; i < frames.size() - 1; i++) {
+	for (i = 0; i < frames.size(); i++) {
 		if (seqno == 0) {
 			std::memcpy(frames[i].data, rf_data_sync, 3);
 		}
@@ -91,9 +90,9 @@ void stream::prepare()
 		else if (seqno % 2 == 1) {
 			if (!serial_sent && (msg_sent || previous == MSG)) {
 				uint8_t tosend = std::min<std::string::size_type>(serial_data.size() - serial_idx, 5);
-				buf[0] = F_DATA | tosend;
+				buf[0] = F_DATA | (tosend & 0x0FU);
 				buf[1] = serial_data[serial_idx];
-				buf[2] = tosend > 1 ? serial_data[serial_idx + 1] : 0x66U;
+				buf[2] = (tosend > 1 ? serial_data[serial_idx + 1] : 0x66U);
 				dv::scram_data(frames[i].data, buf);
 			}
 			else if (!tx_msg.empty() && (serial_sent || previous == SERIAL)) {
@@ -106,9 +105,9 @@ void stream::prepare()
 		else {
 			if (!serial_sent && (msg_sent || previous == MSG)) {
 				uint8_t tosend = std::min<std::string::size_type>(serial_data.size() - serial_idx, 5);
-				buf[0] = tosend > 2 ? serial_data[serial_idx + 2] : 0x66U;
-				buf[1] = tosend > 3 ? serial_data[serial_idx + 3] : 0x66U;
-				buf[2] = tosend > 4 ? serial_data[serial_idx + 4] : 0x66U;
+				buf[0] = (tosend > 2 ? serial_data[serial_idx + 2] : 0x66U);
+				buf[1] = (tosend > 3 ? serial_data[serial_idx + 3] : 0x66U);
+				buf[2] = (tosend > 4 ? serial_data[serial_idx + 4] : 0x66U);
 				dv::scram_data(frames[i].data, buf);
 				serial_idx += tosend;
 				if (serial_idx >= serial_data.size()) serial_sent = true;
@@ -131,8 +130,26 @@ void stream::prepare()
 		seqno = (seqno + 1) % 21;
 	}
 
-	// Fill in last frame's end
-	std::memcpy(frames[frames.size() - 1].data, dv::rf_data_end, 3);
+	dv::rf_frame f;
+	// Add ending frames
+	std::memcpy(f.data, dv::rf_data_preend, 3);
+	if (preend_voice) {
+		std::memcpy(f.ambe, preend_voice->ambe, 9);
+		frames.push_back(f);
+	}
+	else if (frames[frames.size() - 1].is_sync()) {
+		std::memcpy(frames[frames.size() - 1].data, dv::rf_data_preend, 3);
+	}
+	else {
+		std::memcpy(f.ambe, dv::rf_ambe_null, 9);
+		frames.push_back(f);
+	}
+
+	std::memcpy(f.ambe, dv::rf_ambe_end, 9);
+	f.data[0] = 0;
+	f.data[1] = 0;
+	f.data[2] = 0;
+	frames.push_back(f);
 
 	// Done!
 }
