@@ -3,6 +3,7 @@
 #include "dgate/dgate.h"
 #include "itap/itap.h"
 #include <cerrno>
+#include <cstring>
 #include <fcntl.h>
 #include <iostream>
 #include <string>
@@ -209,12 +210,23 @@ void app::itap_readable(ev::io&, int)
 		if (tx_lock.test_and_set()) return;
 
 		dgate::packet p;
+		auto h = msg->header;
+		if (std::memcmp(h.departure_rptr_cs, "DIRECT  ", 8) == 0) {
+			// Terminal Mode sets DIRECT for all transmissions.
+			// We have to re-write.
+			std::string rptr = cs_;
+			rptr[7] = module_;
+			std::memcpy(h.departure_rptr_cs, rptr.c_str(), 8);
+			rptr[7] = 'G';
+			std::memcpy(h.destination_rptr_cs, rptr.c_str(), 8);
+			h.set_crc(h.calc_crc());
+		}
 		p.type = dgate::P_HEADER;
 		p.flags = dgate::P_LOCAL;
 		p.module = module_;
 		tx_id_ = rand_dist_(rand_gen_);
 		p.header.id = tx_id_;
-		p.header.h = msg->header;
+		p.header.h = h;
 
 		dgate_reply(p, dgate::packet_header_size);
 

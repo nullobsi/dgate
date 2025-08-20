@@ -19,6 +19,29 @@ dgate_src = [
 
   'src/dv/frame.cxx',
   'src/dv/header.cxx',
+  'src/dv/crc.cxx',
 ]
 
 executable('dgate', dgate_src, dependencies : deps, include_directories : incdir)
+
+ditap_src = [
+  'src/itap/main.cxx',
+  'src/itap/app.cxx',
+  'src/dgate/client.cxx',
+  'src/dgate/packet.cxx',
+  'src/dv/header.cxx',
+  'src/dv/crc.cxx',
+]
+
+executable('ditap', ditap_src, dependencies : ev, include_directories : incdir)
+
+dlink_src = [
+  'src/dlink/main.cxx',
+  'src/dlink/app.cxx',
+  'src/dlink/app_xrf.cxx',
+  'src/dgate/client.cxx',
+  'src/dgate/packet.cxx',
+  'src/dv/crc.cxx',
+]
+
+executable('dlink', dlink_src, dependencies : ev, include_directories : incdir)

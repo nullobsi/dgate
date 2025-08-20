@@ -59,6 +59,10 @@ int main()
 	p.type = dgate::P_HEADER;
 	p.header.h = s.header;
 	p.header.id = sid;
+	std::memcpy(p.header.h.departure_rptr_cs, "KO6JXH C", 8);
+	std::memcpy(p.header.h.destination_rptr_cs, "KO6JXH G", 8);
+	p.header.h.set_crc(p.header.h.calc_crc());
+
 	write(fd, &p, dgate::packet_header_size);
 	read(fd, &p, dgate::packet_header_size);
 
