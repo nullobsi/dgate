@@ -1,5 +1,5 @@
-#ifndef _IRCMessage_h
-#define _IRCMessage_h
+#ifndef IRCDDB_IRC_MSG_H
+#define IRCDDB_IRC_MSG_H
 
 #include <cstdint>
 #include <optional>

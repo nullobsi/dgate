@@ -1,5 +1,5 @@
+#include "frame.h"
 #include "tables.h"
-#include "types.h"
 #include <bit>
 #include <cstring>
 
@@ -120,11 +120,13 @@ bool frame::is_sync() const
 	return memcmp(rf_data_sync, data, 3) == 0;
 }
 
-bool rf_frame::is_preend() const {
+bool rf_frame::is_preend() const
+{
 	return memcmp(rf_data_preend, data, 3) == 0;
 }
 
-bool frame::is_preend() const {
+bool frame::is_preend() const
+{
 	return memcmp(rf_data_preend, data, 3) == 0;
 }
 
@@ -206,7 +208,8 @@ rf_frame frame::encode() const
 		// We don't decode the sync frame, because it is excluded from
 		// scrambling.
 		std::memcpy(f.data, data, sizeof(f.data));
-	} else if (is_end()) {
+	}
+	else if (is_end()) {
 		std::memcpy(f.data, data, sizeof(f.data));
 		std::memcpy(f.ambe, rf_ambe_end, sizeof(f.ambe));
 	}

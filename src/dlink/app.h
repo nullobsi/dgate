@@ -1,13 +1,13 @@
 #ifndef DLINK_APP_H
 #define DLINK_APP_H
 
+#include "dgate/client.h"
+#include "dv/types.h"
+#include "xrf.h"
 #include <ev++.h>
 #include <sys/socket.h>
 #include <unordered_map>
 #include <unordered_set>
-#include "dgate/client.h"
-#include "dv/types.h"
-#include "xrf.h"
 namespace dlink {
 
 enum link_proto {
@@ -53,6 +53,7 @@ struct link {
 
 class app : public dgate::client {
 	friend link;
+
 public:
 	app(const std::string& dgate_socket_path, const std::string& cs, const std::string& reflectors_file, std::unordered_set<char> enabled_mods_);
 

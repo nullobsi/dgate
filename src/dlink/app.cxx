@@ -223,7 +223,7 @@ void app::link_heartbeat(link_proto proto)
 
 static const std::regex REFLECTOR_LINK_UR_CS = std::regex("^(DCS|XRF|REF|XLX)([0-9]{3})([A-Z])L$", std::regex_constants::ECMAScript | std::regex_constants::optimize);
 
-void app::dgate_handle_header(const dgate::packet& p, size_t count)
+void app::dgate_handle_header(const dgate::packet& p, size_t)
 {
 	// Ignore non-local packets
 	if (!(p.flags & dgate::P_LOCAL)) return;
@@ -285,7 +285,7 @@ void app::dgate_handle_header(const dgate::packet& p, size_t count)
 	}
 }
 
-void app::dgate_handle_voice(const dgate::packet& p, size_t count)
+void app::dgate_handle_voice(const dgate::packet& p, size_t)
 {
 	// Ignore non-local packets
 	if (!(p.flags & dgate::P_LOCAL)) return;
@@ -323,7 +323,7 @@ void app::dgate_handle_voice(const dgate::packet& p, size_t count)
 	}
 }
 
-void app::dgate_handle_voice_end(const dgate::packet& p, size_t len)
+void app::dgate_handle_voice_end(const dgate::packet& p, size_t)
 {
 	// Ignore non-local packets
 	if (!(p.flags & dgate::P_LOCAL)) return;
@@ -346,9 +346,9 @@ void app::dgate_handle_voice_end(const dgate::packet& p, size_t len)
 		xp.voice.flagb[0] = 0;
 		xp.voice.flagb[0] = 1;
 		xp.voice.flagb[0] = 1;// TODO: does this even matter
-		xp.voice.streamid = p.voice.id;
-		xp.voice.seqno = p.voice.seqno | 0x40U;
-		xp.voice.frame = p.voice.f;
+		xp.voice.streamid = p.voice_end.id;
+		xp.voice.seqno = 0x40U | p.voice_end.seqno;// TODO: should probably synthesize this
+		xp.voice.frame = p.voice_end.f;
 		xrf_reply(xp, sizeof(xrf_packet_voice));
 		std::cout << "XRF voice end" << std::endl;
 	} break;

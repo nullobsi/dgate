@@ -1,11 +1,11 @@
 #include "app.h"
 #include "common/c++sock.h"
 #include "dgate/dgate.h"
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
 #include <cstring>
 #include <iostream>
+#include <netdb.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 
 namespace dlink {
 void app::xrf_reply(const xrf_packet& p, size_t len)
@@ -35,7 +35,6 @@ void app::xrf_reply(const xrf_packet& p, size_t len)
 void app::xrf_link(char mod_from, const std::string& ref, char mod_to)
 {
 	std::cout << "xrf_link: " << ref << " has value " << reflectors_[ref] << std::endl;
-
 
 	xrf_packet p;
 	std::memcpy(p.link.from, cs_.c_str(), 8);
@@ -70,7 +69,7 @@ void app::xrf_link(char mod_from, const std::string& ref, char mod_to)
 	xrf_link_.ev_timeout_.again();
 
 	freeaddrinfo(servinfo);
-	
+
 	modules_[xrf_link_.mod_from].link = L_XRF;
 
 	xrf_reply(p, sizeof(xrf_packet_link));
@@ -97,7 +96,6 @@ void app::xrf_readable_v4(ev::io&, int)
 		std::cerr << "dlink: xrf_readable_v4: zero packet, wtf?" << std::endl;
 		return;
 	}
-
 
 	xrf_handle_packet(p, count, from);
 }
@@ -148,7 +146,7 @@ void app::xrf_handle_packet(const xrf_packet& p, size_t len, const sockaddr_stor
 			unlink(L_XRF);
 			return;
 		}
-			std::cout << "xrf link success" << std::endl;
+		std::cout << "xrf link success" << std::endl;
 		xrf_link_.ev_timeout_.again();
 		xrf_link_.ev_heartbeat_.again();
 		xrf_link_.status = L_LINKED;
@@ -166,7 +164,7 @@ void app::xrf_handle_packet(const xrf_packet& p, size_t len, const sockaddr_stor
 	}
 }
 
-void app::xrf_handle_header(const xrf_packet& p, size_t len, const sockaddr_storage& from)
+void app::xrf_handle_header(const xrf_packet& p, size_t, const sockaddr_storage&)
 {
 	dgate::packet dp;
 
@@ -178,7 +176,7 @@ void app::xrf_handle_header(const xrf_packet& p, size_t len, const sockaddr_stor
 	send(dgate_sock_, &dp, dgate::packet_header_size, 0);
 }
 
-void app::xrf_handle_voice(const xrf_packet& p, size_t len, const sockaddr_storage& from)
+void app::xrf_handle_voice(const xrf_packet& p, size_t, const sockaddr_storage&)
 {
 	dgate::packet dp;
 

@@ -17,12 +17,14 @@ enum packet_flags : uint8_t {
 
 static constexpr char packet_title[] = "DGTE";
 
-static inline constexpr uint8_t next_seqno(uint8_t in) {
-	return (in+1) % 21;
+static inline constexpr uint8_t next_seqno(uint8_t in)
+{
+	return (in + 1) % 21;
 }
 
-static inline constexpr uint8_t prev_seqno(int8_t in) {
-	return (in-1) % 21;
+static inline constexpr uint8_t prev_seqno(int8_t in)
+{
+	return (in - 1) % 21;
 }
 
 #pragma pack(push, 1)
@@ -36,8 +38,9 @@ struct packet_voice {
 struct packet_voice_end {
 	uint16_t id;
 	uint8_t count;
-	uint32_t bit_errors;
+	uint8_t seqno;
 	dv::rf_frame f;
+	uint32_t bit_errors;
 };
 
 struct packet_header {
@@ -50,7 +53,7 @@ struct packet {
 	char module;
 	packet_type type;
 	packet_flags flags;
-	uint8_t reserved_; // unused
+	uint8_t reserved_;// unused
 	union {
 		packet_voice voice;
 		packet_voice_end voice_end;

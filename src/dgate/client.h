@@ -24,7 +24,7 @@ protected:
 	virtual void dgate_handle_voice(const packet& p, size_t len) = 0;
 	virtual void dgate_handle_voice_end(const packet& p, size_t len) = 0;
 
-	void dgate_reply(const dgate::packet&p, size_t len);
+	void dgate_reply(const dgate::packet& p, size_t len);
 
 	std::string cs_;
 
@@ -33,6 +33,7 @@ protected:
 	int dgate_sock_;
 
 private:
+	std::string dgate_socket_path_;
 	void dgate_readable(ev::io&, int);
 	ev::io ev_dgate_readable_;
 };

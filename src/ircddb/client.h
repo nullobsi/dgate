@@ -1,13 +1,13 @@
-#ifndef _IRCClient_h
-#define _IRCClient_h
+#ifndef IRCDDB_CLIENT_H
+#define IRCDDB_CLIENT_H
 #include "common/TQueue.h"
 #include "ircddb/irc_msg.h"
+#include <atomic>
 #include <cstdint>
 #include <ev++.h>
 #include <memory>
 #include <sstream>
 #include <string>
-#include <atomic>
 
 namespace ircddb {
 

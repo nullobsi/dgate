@@ -23,6 +23,6 @@ struct dcs_packet_link {
 };
 #pragma pack(pop)
 
-}
+}// namespace dgate
 
 #endif

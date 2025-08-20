@@ -57,19 +57,23 @@ struct xrf_packet {
 		xrf_packet_link_ack ack;
 	};
 
-	inline bool is_heartbeat() const {
+	inline bool is_heartbeat() const
+	{
 		return heartbeat.from[8] == 0;
 	}
 
-	inline bool is_ack() const {
+	inline bool is_ack() const
+	{
 		return ack.null == 0 && ack.ack[2] == 'K';
 	}
 
-	inline bool is_header() const {
+	inline bool is_header() const
+	{
 		return std::memcmp(header.title, "DSVT", 4) == 0 && header.config == 0x10 && header.id == 0x20U && header.ctrl == 0x80;
 	}
 
-	inline bool is_voice() const {
+	inline bool is_voice() const
+	{
 		return std::memcmp(voice.title, "DSVT", 4) == 0 && voice.config == 0x20 && voice.id == 0x20;
 	}
 };

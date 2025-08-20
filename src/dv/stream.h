@@ -1,7 +1,8 @@
 #ifndef DV_STREAM_H
 #define DV_STREAM_H
 
-#include "dv/types.h"
+#include "frame.h"
+#include "header.h"
 #include <ev++.h>
 #include <optional>
 #include <vector>
@@ -14,12 +15,12 @@ struct stream {
 	std::string tx_msg;
 	std::string serial_data;
 
-	std::optional<uint16_t> d_sql; // digital squelch
+	std::optional<uint16_t> d_sql;// digital squelch
 
 	void prepare();
 	void prepare_async(ev::async* cb);
 };
 
-}
+}// namespace dv
 
 #endif

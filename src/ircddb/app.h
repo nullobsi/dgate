@@ -1,5 +1,5 @@
-#ifndef _IRCDDBApp_h
-#define _IRCDDBApp_h
+#ifndef IRCDDB_APP_H
+#define IRCDDB_APP_H
 #include "client.h"
 #include "common/TQueue.h"
 #include "common/lmdb++.h"

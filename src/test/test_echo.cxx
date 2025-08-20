@@ -24,6 +24,7 @@ int main()
 	dgate::packet p;
 	p.type = dgate::P_HEADER;
 
+	// Open d-gate socket
 	sockaddr_un addr;
 	addr.sun_family = AF_UNIX;
 	std::memcpy(addr.sun_path, "dgate.sock", 11);
@@ -34,13 +35,17 @@ int main()
 	int error = connect(fd, (sockaddr*)&addr, sizeof(sockaddr_un));
 	if (error) return errno;
 
+
+	// Capture a transmission
 	while (p.type != dgate::P_VOICE_END) {
 		read(fd, &p, sizeof(dgate::packet));
 		packets.push_back(p);
 	}
 
+	// Wait a while
 	std::this_thread::sleep_for(500ms);
 
+	// Modify stream data
 	dv::stream s;
 
 	uint16_t sid = packets[0].header.id;

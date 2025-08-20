@@ -156,7 +156,7 @@ inline void app::itap_reply(const void* buf, size_t len)
 		std::cerr << "itap: app: itap_reply(): write() returned 0 byte??" << std::endl;
 		return;
 	}
-	if (count != len) {
+	if ((size_t)count != len) {
 		std::cerr << "itap: app: itap_reply(): write(): partial write??" << std::endl;
 		return;
 	}
@@ -164,7 +164,23 @@ inline void app::itap_reply(const void* buf, size_t len)
 
 	// Supposedly this is needed.
 	static const uint8_t msg_end = 0xFFU;
-	write(itap_sock_, &msg_end, 1);
+	count = write(itap_sock_, &msg_end, 1);
+	if (count == -1) {
+		int error = errno;
+		if (error == EAGAIN || error == EWOULDBLOCK) {
+			std::cerr << "itap: app: itap_reply(): called but write() returned EAGAIN??" << std::endl;
+			return;
+		}
+		std::cerr << "itap: app: itap_reply(): write(): error ";
+		std::cerr << strerror(error) << std::endl;
+		// TODO: cleanup
+		cleanup();
+		return;
+	}
+	if (count == 0) {
+		std::cerr << "itap: app: itap_reply(): write() returned 0 byte??" << std::endl;
+		return;
+	}
 }
 
 void app::itap_readable(ev::io&, int)
@@ -318,7 +334,7 @@ void app::send_from_queue()
 	}
 }
 
-void app::dgate_handle_header(const dgate::packet& p, size_t len)
+void app::dgate_handle_header(const dgate::packet& p, size_t)
 {
 	if (tx_lock.test() || p.module != module_) return;// ack
 
@@ -337,7 +353,7 @@ void app::dgate_handle_header(const dgate::packet& p, size_t len)
 	acked_ = false;
 }
 
-void app::dgate_handle_voice(const dgate::packet& p, size_t len)
+void app::dgate_handle_voice(const dgate::packet& p, size_t)
 {
 	if (tx_lock.test() || p.module != module_) return;// ack
 
@@ -357,7 +373,7 @@ void app::dgate_handle_voice(const dgate::packet& p, size_t len)
 	acked_ = false;
 }
 
-void app::dgate_handle_voice_end(const dgate::packet& p, size_t len)
+void app::dgate_handle_voice_end(const dgate::packet& p, size_t)
 {
 	if (tx_lock.test() || p.voice_end.id == tx_id_ || p.module != module_) return;// ack
 

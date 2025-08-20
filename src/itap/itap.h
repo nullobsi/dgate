@@ -37,6 +37,6 @@ struct packet {
 };
 #pragma pack(pop)
 
-}
+}// namespace itap
 
 #endif

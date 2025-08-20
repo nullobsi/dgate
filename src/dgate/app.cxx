@@ -1,7 +1,6 @@
 #include "app.h"
 #include "dgate/dgate.h"
 #include "dgate/g2.h"
-#include "dv/types.h"
 #include <cerrno>
 #include <cstring>
 #include <ev++.h>
@@ -231,7 +230,7 @@ void app::g2_handle_packet(const g2_packet& p, size_t len, const sockaddr_storag
 	if (len == 27) g2_handle_voice(p, len, from);
 }
 
-void app::g2_handle_header(const g2_packet& p, size_t len, const sockaddr_storage& from)
+void app::g2_handle_header(const g2_packet& p, size_t, const sockaddr_storage& from)
 {
 	char dst = p.header.destination_rptr_cs[7];
 	if (!enabled_modules_.contains(dst)) return;
@@ -274,7 +273,7 @@ void app::handle_header(const dv::header& h, char m)
 	write_all_dgate(p, packet_header_size);
 }
 
-void app::g2_handle_voice(const g2_packet& p, size_t len, const sockaddr_storage& from)
+void app::g2_handle_voice(const g2_packet& p, size_t, const sockaddr_storage&)
 {
 	auto id = p.streamid;
 	auto seqno = p.ctrl & 0x1FU;// The MSBs are used for signaling
@@ -393,11 +392,6 @@ void app::handle_voice(const dv::rf_frame& v, char m)
 	p.voice.f = r;
 	if (state.local) p.flags = P_LOCAL;
 
-	std::cout << std::setw(2) << std::hex << std::internal << (uint64_t)(r.data[0]^0x70U) << " ";
-	std::cout << std::setw(2) << std::hex << std::internal << (uint64_t)(r.data[1]^0x4FU) << " ";
-	std::cout << std::setw(2) << std::hex << std::internal << (uint64_t)(r.data[2]^0x93U) << " ";
-	std::cout << std::endl;
-
 	write_all_dgate(p, packet_voice_size);
 }
 
@@ -413,10 +407,11 @@ void app::handle_voice_end(const dv::rf_frame& v, char m)
 	packet p;
 	p.module = m;
 	p.type = P_VOICE_END;
-	p.voice_end.count = state.count;
-	p.voice_end.bit_errors = state.bit_errors;
 	p.voice_end.id = state.tx_id;
+	p.voice_end.count = state.count;
+	p.voice_end.seqno = state.seqno;
 	p.voice_end.f = f.encode();
+	p.voice_end.bit_errors = state.bit_errors;
 	if (state.local) p.flags = P_LOCAL;
 
 	std::cout << "END TX: " << std::to_string(state.bit_errors) << " " << std::to_string(state.count) << " " << std::to_string(state.tx_id) << std::endl;
@@ -465,27 +460,26 @@ void app::dgate_readable(ev::io&, int)
 	conn.watcher->set<app, &app::dgate_client_readable>(this);
 	conn.watcher->start(client_fd, ev::READ);
 
-	dgate_conns_.push_back(std::move(conn));
+	dgate_conns_.push_front(std::move(conn));
 }
 
 void app::dgate_client_readable(ev::io& watcher, int)
 {
-	std::vector<client_connection>::size_type i;
-	for (i = 0; i < dgate_conns_.size(); i++) {
-		if (dgate_conns_[i].watcher.get() == &watcher) {
-			dgate_client_handle_packet(i);
-		}
-	}
-}
+	int fd = watcher.fd;
 
-void app::dgate_client_handle_packet(int i)
-{
 	packet p;
-	ssize_t count = read(dgate_conns_[i].fd, &p, sizeof(packet));
+	ssize_t count = read(fd, &p, sizeof(packet));
 	if (count == 0) {
 		// Client connection closed.
-		close(dgate_conns_[i].fd);
-		dgate_conns_.erase(dgate_conns_.begin() + i);
+		close(fd);
+		auto prev = dgate_conns_.cbefore_begin();
+		for (auto i = dgate_conns_.cbegin(); i != dgate_conns_.end(); ++i) {
+			if (i->fd == fd) {
+				dgate_conns_.erase_after(prev);
+				return;
+			}
+			prev = i;
+		}
 
 		return;
 	}
@@ -500,8 +494,15 @@ void app::dgate_client_handle_packet(int i)
 		std::cerr << "dgate_client_handle_packet(): closing, read(): ";
 		std::cerr << strerror(error) << std::endl;
 
-		close(dgate_conns_[i].fd);
-		dgate_conns_.erase(dgate_conns_.begin() + i);
+		close(fd);
+		auto prev = dgate_conns_.cbefore_begin();
+		for (auto i = dgate_conns_.cbegin(); i != dgate_conns_.end(); ++i) {
+			if (i->fd == fd) {
+				dgate_conns_.erase_after(prev);
+				return;
+			}
+			prev = i;
+		}
 		return;
 	}
 

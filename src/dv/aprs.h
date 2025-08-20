@@ -7,6 +7,6 @@ namespace dv {
 // The string must be given with a terminating CR (\r).
 std::string encode_aprs_string(const std::string& aprs);
 
-}
+}// namespace dv
 
 #endif

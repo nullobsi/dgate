@@ -5,6 +5,7 @@
 #include "dgate/g2.h"
 #include "ircddb/app.h"
 #include <ev++.h>
+#include <forward_list>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -67,7 +68,6 @@ private:
 
 	void dgate_readable(ev::io&, int);
 	void dgate_client_readable(ev::io&, int);
-	void dgate_client_handle_packet(int id);
 
 	void tx_timeout(char module);
 
@@ -86,7 +86,7 @@ private:
 
 	int dgate_sock_;
 
-	std::vector<client_connection> dgate_conns_;
+	std::forward_list<client_connection> dgate_conns_;
 
 	ev::io ev_g2_readable_v4_;
 	ev::io ev_g2_readable_v6_;
