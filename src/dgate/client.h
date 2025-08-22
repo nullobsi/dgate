@@ -42,7 +42,7 @@ namespace dgate {
 
 class client {
 public:
-	client(const std::string& dgate_socket_path, const std::string& cs);
+	client(const std::string& dgate_socket_path);
 
 	void setup();
 	void cleanup();

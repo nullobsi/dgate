@@ -24,7 +24,6 @@
 
 #include "dgate/dgate.h"
 #include "dgate/g2.h"
-#include "ircddb/app.h"
 #include <ev++.h>
 #include <forward_list>
 #include <functional>
@@ -71,10 +70,7 @@ class app {
 	friend module;
 
 public:
-	app(std::string cs, std::unordered_set<char> modules, std::unique_ptr<ircddb::app> ircddb,
-	    std::shared_ptr<lmdb::env> env, std::shared_ptr<lmdb::dbi> cs_rptr,
-	    std::shared_ptr<lmdb::dbi> zone_ip4, std::shared_ptr<lmdb::dbi> zone_ip6,
-	    std::shared_ptr<lmdb::dbi> zone_nick);
+	app(std::string cs, std::unordered_set<char> modules);
 
 	void run();
 
@@ -116,14 +112,6 @@ private:
 
 	std::unordered_set<char> enabled_modules_;// Enabled modules on this GATE.
 	std::unordered_map<char, std::unique_ptr<module>> modules_;
-	std::unique_ptr<ircddb::app> ircddb_;
-
-	// Memory caches for repeater information.
-	std::shared_ptr<lmdb::env> env_;
-	std::shared_ptr<lmdb::dbi> cs_rptr_;
-	std::shared_ptr<lmdb::dbi> zone_ip4_;
-	std::shared_ptr<lmdb::dbi> zone_ip6_;
-	std::shared_ptr<lmdb::dbi> zone_nick_;
 };
 
 }// namespace dgate

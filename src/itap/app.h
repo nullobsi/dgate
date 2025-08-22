@@ -52,6 +52,7 @@ private:
 	inline ssize_t itap_read(void* buf, size_t len);
 	inline void itap_reply(const void* buf, size_t len);
 
+	std::string cs_;
 	std::string itap_tty_path_;
 
 	uint8_t msg_length_;

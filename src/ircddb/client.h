@@ -66,6 +66,8 @@ public:
 
 	void run();
 
+	~client();
+
 private:
 	int send_msg(const std::string& msg);
 

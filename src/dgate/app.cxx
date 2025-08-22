@@ -52,15 +52,10 @@ void module::operator()(ev::timer&, int)
 	parent->tx_timeout(name);
 }
 
-app::app(std::string cs, std::unordered_set<char> modules, std::unique_ptr<ircddb::app> ircddb,
-         std::shared_ptr<lmdb::env> env, std::shared_ptr<lmdb::dbi> cs_rptr,
-         std::shared_ptr<lmdb::dbi> zone_ip4, std::shared_ptr<lmdb::dbi> zone_ip6,
-         std::shared_ptr<lmdb::dbi> zone_nick)
+app::app(std::string cs, std::unordered_set<char> modules)
 	: loop_(), cs_(cs), g2_sock_v4_(-1), g2_sock_v6_(-1), dgate_sock_(-1),
 	  ev_g2_readable_v4_(loop_), ev_g2_readable_v6_(loop_), ev_dgate_readable_(loop_),
-	  enabled_modules_(modules), ircddb_(std::move(ircddb)), env_(env),
-	  cs_rptr_(cs_rptr), zone_ip4_(zone_ip4), zone_ip6_(zone_ip6),
-	  zone_nick_(zone_nick)
+	  enabled_modules_(modules)
 {
 	cs_.resize(8, ' ');
 	for (auto m : enabled_modules_) {

@@ -106,6 +106,11 @@ int client::connect()
 	return 0;
 }
 
+client::~client()
+{
+	cleanup();
+}
+
 void client::cleanup()
 {
 	if (socketFd_ != -1) {

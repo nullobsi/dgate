@@ -93,7 +93,8 @@ void app::xrf_link(char mod_from, const std::string& ref, char mod_to)
 
 	modules_[xrf_link_.mod_from].link = L_XRF;
 
-	xrf_reply(p, sizeof(xrf_packet_link));
+	for (int i = 0; i < 5; i++) // Send multiple times (this is UDP after all)
+		xrf_reply(p, sizeof(xrf_packet_link));
 }
 
 void app::xrf_readable_v4(ev::io&, int)
@@ -194,6 +195,18 @@ void app::xrf_handle_header(const xrf_packet& p, size_t, const sockaddr_storage&
 	dp.header.h = p.header.header;
 	dp.header.id = p.header.streamid;
 
+	// RPT1: RPTR   A
+	// RTP2: RPTR   G
+	std::string cs = cs_;
+	cs[7] = dp.module;
+	std::memcpy(dp.header.h.departure_rptr_cs, cs.c_str(), 8);
+	cs[7] = 'G';
+	std::memcpy(dp.header.h.destination_rptr_cs, cs.c_str(), 8);
+
+	dp.header.h.set_crc(dp.header.h.calc_crc());
+
+	// TODO: does URCALL need to be overwritten too?
+
 	send(dgate_sock_, &dp, dgate::packet_header_size, 0);
 }
 
@@ -208,6 +221,7 @@ void app::xrf_handle_voice(const xrf_packet& p, size_t, const sockaddr_storage&)
 		dp.voice_end.count = 0;
 		dp.voice_end.f = p.voice.frame;
 		dp.voice_end.id = p.voice.streamid;
+		dp.voice_end.seqno = p.voice.seqno & 0x1F;
 	}
 	else {
 		dp.type = dgate::P_VOICE;

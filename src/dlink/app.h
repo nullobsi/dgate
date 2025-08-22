@@ -96,6 +96,8 @@ private:
 	void xrf_handle_header(const xrf_packet& p, size_t len, const sockaddr_storage& from);
 	void xrf_handle_voice(const xrf_packet& p, size_t len, const sockaddr_storage& from);
 
+	std::string cs_;
+
 	void dcs_readable_v6(ev::io&, int);
 	void xrf_readable_v6(ev::io&, int);
 	void ref_readable_v6(ev::io&, int);

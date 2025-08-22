@@ -43,10 +43,9 @@
 
 namespace dgate {
 
-client::client(const std::string& dgate_socket_path, const std::string& cs)
-	: cs_(cs), loop_(), dgate_sock_(-1), dgate_socket_path_(dgate_socket_path), ev_dgate_readable_(loop_)
+client::client(const std::string& dgate_socket_path)
+	: loop_(), dgate_sock_(-1), dgate_socket_path_(dgate_socket_path), ev_dgate_readable_(loop_)
 {
-	cs_.resize(8);
 	ev_dgate_readable_.set<client, &client::dgate_readable>(this);
 }
 

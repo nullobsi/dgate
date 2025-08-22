@@ -50,10 +50,11 @@ std::string name_to_zone(const std::string& name)
 
 namespace ircddb {
 
-app::app(const std::string& cs, const std::vector<client_cfg>& configs, std::shared_ptr<lmdb::env> env, std::shared_ptr<lmdb::dbi> cs_rptr, std::shared_ptr<lmdb::dbi> zone_ip4, std::shared_ptr<lmdb::dbi> zone_ip6, std::shared_ptr<lmdb::dbi> zone_nick)
-	: done(false), error(false), loop_(), ev_msg_out(loop_), env_(env), cs_rptr_(cs_rptr), zone_ip4_(zone_ip4), zone_ip6_(zone_ip6), zone_nick_(zone_nick)
+app::app(const std::string& dgate_socket_path, const std::string& cs, std::unordered_set<char> enabled_mods_, const std::vector<client_cfg>& configs, std::shared_ptr<lmdb::env> env, std::shared_ptr<lmdb::dbi> cs_rptr, std::shared_ptr<lmdb::dbi> zone_ip4, std::shared_ptr<lmdb::dbi> zone_ip6, std::shared_ptr<lmdb::dbi> zone_nick)
+	: dgate::client(dgate_socket_path), done(false), error(false), ev_msg_out(loop_), env_(env), cs_rptr_(cs_rptr), zone_ip4_(zone_ip4), zone_ip6_(zone_ip6), zone_nick_(zone_nick)
 {
-	callsign_ = str_tolower(cs);
+	cs_ = str_tolower(cs);
+
 	// TODO: verify realname field
 	std::string realname = ":CIRCDDB: dgate 0.0.1";
 
@@ -64,9 +65,9 @@ app::app(const std::string& cs, const std::vector<client_cfg>& configs, std::sha
 		store->watcher->set<app, &app::msg_in>(this);
 		store->watcher->start();
 
-		store->current_nick = callsign_ + "-1";
+		store->current_nick = cs_ + "-1";
 
-		store->client = std::make_unique<client>(c.host, c.port, c.pass, store->current_nick, callsign_, "CIRCDDB:2.0.0 d-gate0001", store->watcher);
+		store->client = std::make_unique<ircddb::client>(c.host, c.port, c.pass, store->current_nick, cs_, "CIRCDDB:2.0.0 d-gate0001", store->watcher);
 		store->cfg = c;
 
 		clients_.push_back(std::move(store));
@@ -95,7 +96,7 @@ void app::run()
 	loop_.run();
 }
 
-void app::cleanup()
+void app::do_cleanup()
 {
 	for (const auto& c : clients_) {
 		c->watcher->stop();
@@ -180,7 +181,7 @@ void app::handle_msg(int i, const irc_msg& msg)
 	}
 }
 
-static const std::regex SERVOPER_NICK_REGEX("@(s-[A-Za-z0-9\x5B-\x60\x7B-\x7D]+)", std::regex_constants::ECMAScript | std::regex_constants::optimize);
+static const std::regex SERVOPER_NICK_REGEX("@(s-[A-Za-z0-9\\x5B-\\x60\\x7B-\\x7D]+)", std::regex_constants::ECMAScript | std::regex_constants::optimize);
 
 void app::handle_NAMREPLY(int i, const irc_msg& msg)
 {

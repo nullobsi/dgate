@@ -39,6 +39,8 @@
 #include <cstring>
 namespace dlink {
 
+#pragma pack(push, 1)
+
 struct xrf_packet_heartbeat {
 	char from[9];// Null-terminated, shouldn't include module
 };
@@ -111,6 +113,8 @@ struct xrf_packet {
 		return std::memcmp(voice.title, "DSVT", 4) == 0 && voice.config == 0x20 && voice.id == 0x20;
 	}
 };
+
+#pragma pack(pop)
 
 }// namespace dlink
 

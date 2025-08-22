@@ -38,8 +38,9 @@
 
 namespace itap {
 
-app::app(const std::string& dgate_socket_path, const std::string& itap_tty_path, const std::string& cs, char module) : dgate::client(dgate_socket_path, cs), itap_tty_path_(itap_tty_path), module_(module), itap_sock_(-1), ev_itap_readable_(loop_), ev_itap_ping_(loop_), ev_itap_timeout_(loop_), rand_gen_(getpid()), rand_dist_()
+app::app(const std::string& dgate_socket_path, const std::string& itap_tty_path, const std::string& cs, char module) : dgate::client(dgate_socket_path),  cs_(cs), itap_tty_path_(itap_tty_path), module_(module), itap_sock_(-1), ev_itap_readable_(loop_), ev_itap_ping_(loop_), ev_itap_timeout_(loop_), rand_gen_(getpid()), rand_dist_()
 {
+	cs_.resize(8, ' ');
 	ev_itap_readable_.set<app, &app::itap_readable>(this);
 	ev_itap_timeout_.set<app, &app::itap_timeout>(this);
 	ev_itap_ping_.set<app, &app::itap_ping>(this);
@@ -286,6 +287,7 @@ void app::itap_readable(ev::io&, int)
 			p.voice_end.count = msg->voice.count;
 			p.voice_end.id = tx_id_;
 			p.voice_end.f = msg->voice.f;
+			p.voice_end.seqno = msg->voice.seqno & 0x1F;
 			dgate_reply(p, dgate::packet_voice_end_size);
 
 			tx_lock.clear();// TODO: must clear after timeout, does AP

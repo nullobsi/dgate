@@ -24,6 +24,7 @@
 #include "client.h"
 #include "common/threaded_queue.h"
 #include "common/lmdb++.h"
+#include "dgate/client.h"
 #include "irc_msg.h"
 #include <atomic>
 #include <cstdint>
@@ -31,6 +32,7 @@
 #include <map>
 #include <memory>
 #include <sys/socket.h>
+#include <unordered_set>
 #include <vector>
 
 namespace ircddb {
@@ -52,9 +54,9 @@ struct client_store {
 	std::string current_nick;
 };
 
-class app {
+class app : public dgate::client {
 public:
-	app(const std::string& callsign, const std::vector<client_cfg>& configs,
+	app(const std::string& dgate_socket_path, const std::string& cs, std::unordered_set<char> enabled_mods_, const std::vector<client_cfg>& configs,
 	    std::shared_ptr<lmdb::env> env,
 	    std::shared_ptr<lmdb::dbi> cs_rptr,
 	    std::shared_ptr<lmdb::dbi> zone_ip4,
@@ -68,9 +70,15 @@ public:
 
 	void queue_msg(const irc_msg& msg);
 
-private:
-	void cleanup();
+protected:
+	void do_setup() override;
+	void do_cleanup() override;
 
+	void dgate_handle_header(const dgate::packet& p, size_t len) override;
+	void dgate_handle_voice(const dgate::packet& p, size_t len) override;
+	void dgate_handle_voice_end(const dgate::packet& p, size_t len) override;
+
+private:
 	void msg_out(ev::async& w, int revents);
 	void msg_in(ev::async& w, int revents);
 
@@ -81,14 +89,13 @@ private:
 	void handle_JOIN(int id, const irc_msg& msg);
 	void handle_QUIT(int id, const irc_msg& msg);
 
-	void update_gate(int id, const std::string& nick, const std::string& user, const std::string& host);
-	void delete_gate(int id, const std::string& user);
+	void update_gate(int client, const std::string& nick, const std::string& user, const std::string& host);
+	void delete_gate(int client, const std::string& user);
 
-	void get_all_gates(int id);
+	void get_all_gates(int client);
 
-	ev::dynamic_loop loop_;
+	std::string cs_;
 
-	std::string callsign_;
 	std::vector<std::shared_ptr<client_store>> clients_;
 
 	// Fired when message added to queue.

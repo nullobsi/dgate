@@ -120,7 +120,7 @@ void app::do_cleanup()
 }
 
 app::app(const std::string& dgate_socket_path, const std::string& cs, const std::string& reflectors_file, std::unordered_set<char> enabled_mods_)
-	: dgate::client(dgate_socket_path, cs),
+	: dgate::client(dgate_socket_path), cs_(cs),
 	  ev_dcs_readable_v6_(loop_), ev_xrf_readable_v6_(loop_), ev_ref_readable_v6_(loop_),
 	  ev_dcs_readable_v4_(loop_), ev_xrf_readable_v4_(loop_), ev_ref_readable_v4_(loop_),
 	  dcs_sock_v6_(-1), xrf_sock_v6_(-1), ref_sock_v6_(-1),
@@ -155,6 +155,8 @@ void app::do_setup()
 		std::string ip;
 		iss >> host;
 		iss >> ip;
+
+		host.resize(6, ' '); // TODO: if we want to link to Repeaters we need to check before we truncate
 
 		reflectors_[host] = ip;
 	}
@@ -289,12 +291,27 @@ void app::dgate_handle_header(const dgate::packet& p, size_t)
 			xp.header.flaga[2] = 0;
 			xp.header.id = 0x20;
 			xp.header.flagb[0] = 0;
-			xp.header.flagb[0] = 1;
-			xp.header.flagb[0] = 1;// TODO: does this even matter
+			xp.header.flagb[1] = 1;
+			xp.header.flagb[2] = xrf_link_.mod_to;
 			xp.header.streamid = p.header.id;
 			xp.header.ctrl = 0x80U;
 			xp.header.header = p.header.h;
-			xrf_reply(xp, sizeof(xrf_packet_header));
+
+			std::string ref = xrf_link_.reflector;
+			std::string cs = cs_;
+
+			ref.resize(8, ' ');
+
+			ref[7] = xrf_link_.mod_to;
+			std::memcpy(xp.header.header.destination_rptr_cs, ref.c_str(), 8);
+
+			cs[7] = xrf_link_.mod_from;
+			std::memcpy(xp.header.header.departure_rptr_cs, cs_.c_str(), 8);
+
+			xp.header.header.set_crc(xp.header.header.calc_crc());
+
+			for (int i = 0; i < 5; i++)
+				xrf_reply(xp, sizeof(xrf_packet_header));
 		} break;
 
 		case L_REF: {
@@ -368,7 +385,7 @@ void app::dgate_handle_voice_end(const dgate::packet& p, size_t)
 		xp.voice.flagb[0] = 1;
 		xp.voice.flagb[0] = 1;// TODO: does this even matter
 		xp.voice.streamid = p.voice_end.id;
-		xp.voice.seqno = 0x40U | p.voice_end.seqno;// TODO: should probably synthesize this
+		xp.voice.seqno = 0x40U | p.voice_end.seqno;
 		xp.voice.frame = p.voice_end.f;
 		xrf_reply(xp, sizeof(xrf_packet_voice));
 		std::cout << "XRF voice end" << std::endl;
