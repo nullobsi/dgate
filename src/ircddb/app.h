@@ -26,16 +26,27 @@
 #include "common/lmdb++.h"
 #include "dgate/client.h"
 #include "irc_msg.h"
+#include "g2.h"
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <ev++.h>
 #include <map>
 #include <memory>
 #include <sys/socket.h>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 namespace ircddb {
+
+struct module_state {
+	std::chrono::time_point<std::chrono::utc_clock> tx_start;
+	dv::header h;
+	bool in_tx;
+	uint16_t streamid;
+	char dest[8];
+};
 
 struct client_cfg {
 	std::string host;
@@ -56,13 +67,13 @@ struct client_store {
 
 class app : public dgate::client {
 public:
-	app(const std::string& dgate_socket_path, const std::string& cs, std::unordered_set<char> enabled_mods_, const std::vector<client_cfg>& configs,
+	app(const std::string& dgate_socket_path, const std::string& cs, std::unordered_set<char> enabled_mods, const std::vector<client_cfg>& configs,
 	    std::shared_ptr<lmdb::env> env,
 	    std::shared_ptr<lmdb::dbi> cs_rptr,
 	    std::shared_ptr<lmdb::dbi> zone_ip4,
 	    std::shared_ptr<lmdb::dbi> zone_ip6,
 	    std::shared_ptr<lmdb::dbi> zone_nick);
-	void run();
+	void run() override;
 
 	std::atomic_bool done;
 	// Set to true if an error has occured.
@@ -84,6 +95,9 @@ private:
 
 	void handle_msg(int id, const irc_msg& msg);
 
+	void handle_direct_msg(int id, const irc_msg& msg);
+	void handle_server_msg(int id, const irc_msg& msg);
+
 	void handle_NAMREPLY(int id, const irc_msg& msg);
 	void handle_WHOREPLY(int id, const irc_msg& msg);
 	void handle_JOIN(int id, const irc_msg& msg);
@@ -94,12 +108,31 @@ private:
 
 	void get_all_gates(int client);
 
-	std::string cs_;
+	void g2_readable_v4(ev::io&, int);
+	void g2_readable_v6(ev::io&, int);
+	void g2_handle_packet(const g2_packet& p, size_t len, const sockaddr_storage& from);
+	void g2_handle_header(const g2_packet& p, size_t len, const sockaddr_storage& from);
+	void g2_handle_voice(const g2_packet& p, size_t len, const sockaddr_storage& from);
 
+	std::string cs_short_lower_;
+	std::string cs_long_upper_;
+
+	ev::async ev_msg_out;
+
+	ev::io ev_g2_readable_v4_;
+	ev::io ev_g2_readable_v6_;
+
+	ev::io ev_dgate_readable_;
+
+	int g2_sock_v4_;
+	int g2_sock_v6_;
+
+	int dgate_sock_;
+
+	std::unordered_map<char, module_state> enabled_mods_;
 	std::vector<std::shared_ptr<client_store>> clients_;
 
 	// Fired when message added to queue.
-	ev::async ev_msg_out;
 	threaded_queue<irc_msg> queue_msg_out;
 
 	// Used for caching heard callsigns.

@@ -64,17 +64,19 @@ static inline constexpr uint8_t prev_seqno(int8_t in)
 #pragma pack(push, 1)
 struct packet_voice {
 	uint16_t id;
-	uint8_t count;
-	uint8_t seqno;
+	uint16_t count;
 	dv::rf_frame f;
+	uint8_t seqno;
 };
 
 struct packet_voice_end {
 	uint16_t id;
-	uint8_t count;
-	uint8_t seqno;
+	uint16_t count;
 	dv::rf_frame f;
-	uint32_t bit_errors;
+	uint64_t bit_errors;
+	uint8_t seqno;
+	char tx_msg[20];
+	char serial_data[512];
 };
 
 struct packet_header {

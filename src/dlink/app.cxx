@@ -292,7 +292,8 @@ void app::dgate_handle_header(const dgate::packet& p, size_t)
 			xp.header.id = 0x20;
 			xp.header.flagb[0] = 0;
 			xp.header.flagb[1] = 1;
-			xp.header.flagb[2] = xrf_link_.mod_to;
+			xp.header.flagb[2] = xrf_link_.mod_to; // TODO: is this
+				// mod_to or mod_from?
 			xp.header.streamid = p.header.id;
 			xp.header.ctrl = 0x80U;
 			xp.header.header = p.header.h;

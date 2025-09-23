@@ -32,12 +32,12 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
-#ifndef DGATE_G2_H
-#define DGATE_G2_H
+#ifndef IRCDDB_G2_H
+#define IRCDDB_G2_H
 #include "dv/types.h"
 #include <cstdint>
 
-namespace dgate {
+namespace ircddb {
 
 // thx to qnetgateway Tom N7TAE
 #pragma pack(push, 1)

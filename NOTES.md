@@ -54,3 +54,5 @@ thread) will write to it.
  - easy enough to run for Terminal Mode, but reliable enough to be used
    on a repeater
 
+inetcontrol for IRC and lowdelay for 9011 d-star
+

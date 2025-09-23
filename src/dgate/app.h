@@ -23,7 +23,6 @@
 #define DGATE_APP_H
 
 #include "dgate/dgate.h"
-#include "dgate/g2.h"
 #include <ev++.h>
 #include <forward_list>
 #include <functional>
@@ -43,9 +42,9 @@ struct tx_state {
 	char tx_msg[21];        // might as well null-terminate this
 	dv::header header;
 	sockaddr_storage from;
-	uint32_t count;     // Total count of packets
+	uint16_t count;     // Total count of packets
 	uint8_t seqno;      // D-star frame count (mod 21)
-	uint32_t bit_errors;// Number of bit errors detected
+	uint64_t bit_errors;// Number of bit errors detected
 	uint16_t tx_id;
 	uint8_t miniheader;
 	int serial_pointer;
@@ -77,12 +76,6 @@ public:
 private:
 	void unbind_all();
 
-	void g2_readable_v4(ev::io&, int);
-	void g2_readable_v6(ev::io&, int);
-	void g2_handle_packet(const g2_packet& p, size_t len, const sockaddr_storage& from);
-	void g2_handle_header(const g2_packet& p, size_t len, const sockaddr_storage& from);
-	void g2_handle_voice(const g2_packet& p, size_t len, const sockaddr_storage& from);
-
 	void dgate_readable(ev::io&, int);
 	void dgate_client_readable(ev::io&, int);
 
@@ -98,15 +91,9 @@ private:
 
 	std::string cs_;
 
-	int g2_sock_v4_;
-	int g2_sock_v6_;
-
 	int dgate_sock_;
 
 	std::forward_list<client_connection> dgate_conns_;
-
-	ev::io ev_g2_readable_v4_;
-	ev::io ev_g2_readable_v6_;
 
 	ev::io ev_dgate_readable_;
 
