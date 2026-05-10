@@ -52,15 +52,17 @@ void module::operator()(ev::timer&, int)
 }
 
 app::app(std::string cs, std::unordered_set<char> modules)
-	: loop_(), cs_(cs), 
+	: loop_(), cs_(cs),
 	  enabled_modules_(modules)
 {
+	enabled_module_bits_ = 0;
 	cs_.resize(8, ' ');
 	for (auto m : enabled_modules_) {
 		modules_[m] = std::make_unique<module>(this, m, tx_state(), std::make_shared<ev::timer>(loop_));
 		modules_[m]->timeout->set(1., 1.);// TODO: configurable
 		modules_[m]->timeout->set(modules_[m].get());
 		modules_[m]->tx_lock.clear();
+		enabled_module_bits_ |= 1U << (m - 'A');
 	}
 	ev_dgate_readable_.set<app, &app::dgate_readable>(this);
 }
@@ -329,6 +331,28 @@ void app::dgate_readable(ev::io&, int)
 	}
 
 	std::cout << "Client connection accepted" << std::endl;
+
+	// Send initial config packet.
+	packet p{};
+	p.flags = P_LOCAL;
+	p.type = P_CONFIG;
+	p.module = '!';
+	p.config.module_bits = enabled_module_bits_;
+	std::memcpy(p.config.callsign, cs_.c_str(), 8);
+
+	ssize_t count = write(client_fd, &p, packet_config_size);
+	if (count == -1) {
+		int error = errno;
+		std::cerr << "dgate_readable(): new connection immediately close, write(): ";
+		std::cerr << strerror(error) << std::endl;
+		close(client_fd);
+		return;
+	}
+	if (count != (ssize_t)packet_config_size) {
+		std::cerr << "dgate_readable(): WTF, datagram partial write? closing" << std::endl;
+		close(client_fd);
+		return;
+	}
 
 	client_connection conn;
 	conn.fd = client_fd;

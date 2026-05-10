@@ -34,17 +34,19 @@
 
 #include "client.h"
 #include "dgate/dgate.h"
+#include <bitset>
 #include <cstring>
 #include <fcntl.h>
 #include <iostream>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
+#include <unordered_set>
 
 namespace dgate {
 
 client::client(const std::string& dgate_socket_path)
-	: loop_(), dgate_sock_(-1), dgate_socket_path_(dgate_socket_path), ev_dgate_readable_(loop_)
+	: loop_(), dgate_sock_(-1), enabled_modules_(), cs_(), dgate_socket_path_(dgate_socket_path), ev_dgate_readable_(loop_)
 {
 	ev_dgate_readable_.set<client, &client::dgate_readable>(this);
 }
@@ -74,7 +76,7 @@ void client::setup()
 	int error = errno;
 
 	if (dgate_sock_ == -1) {
-		std::cerr << "dlink: socket(): could not create UNIX socket: ";
+		std::cerr << "dgate::client: socket(): could not create UNIX socket: ";
 		std::cerr << strerror(error) << std::endl;
 		cleanup();
 		return;
@@ -88,7 +90,7 @@ void client::setup()
 	error = connect(dgate_sock_, (sockaddr*)&name, sizeof(sockaddr_un));
 	if (error) {
 		error = errno;
-		std::cerr << "dlink: connect(): failed: ";
+		std::cerr << "dgate::client: connect(): failed: ";
 		std::cerr << strerror(error) << std::endl;
 		cleanup();
 		return;
@@ -96,8 +98,6 @@ void client::setup()
 
 	fcntl(dgate_sock_, F_SETFL, O_NONBLOCK);
 	ev_dgate_readable_.start(dgate_sock_, ev::READ);
-
-	do_setup();
 }
 
 void client::do_setup() {}
@@ -124,6 +124,22 @@ void client::dgate_readable(ev::io&, int)
 	if (count == dgate::packet_voice_size) return dgate_handle_voice(p, count);
 	if (count == dgate::packet_voice_end_size) return dgate_handle_voice_end(p, count);
 	if (count == dgate::packet_header_size) return dgate_handle_header(p, count);
+	if (count == dgate::packet_config_size) return dgate_handle_config(p, count);
+}
+
+void client::dgate_handle_config(const dgate::packet& p, size_t _)
+{
+	cs_.assign(p.config.callsign, 8);
+
+	auto bits = std::bitset<26>{p.config.module_bits};
+	enabled_modules_ = std::unordered_set<char>{};
+	for (int i = 0; i < 26; i++) {
+		if (bits.test(i)) {
+			enabled_modules_.insert('A' + i);
+		}
+	}
+
+	do_setup();
 }
 
 void client::dgate_reply(const dgate::packet& p, size_t len)

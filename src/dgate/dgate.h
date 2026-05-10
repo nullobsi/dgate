@@ -43,6 +43,7 @@ enum packet_type : uint8_t {
 	P_VOICE = 0x20U,
 	P_VOICE_END = 0x21U,
 	P_HEADER = 0x10U,
+	P_CONFIG = 0xFFU,
 };
 
 enum packet_flags : uint8_t {
@@ -84,6 +85,12 @@ struct packet_header {
 	dv::header h;
 };
 
+struct packet_config {
+	char callsign[8];
+	// This is a 26-bit bitfield.
+	uint32_t module_bits;
+};
+
 struct packet {
 	char title[4];// DGTE
 	char module;
@@ -94,6 +101,7 @@ struct packet {
 		packet_voice voice;
 		packet_voice_end voice_end;
 		packet_header header;
+		packet_config config;
 	};
 
 	packet();
@@ -103,6 +111,7 @@ struct packet {
 static constexpr std::size_t packet_voice_size = 8 + sizeof(packet_voice);
 static constexpr std::size_t packet_voice_end_size = 8 + sizeof(packet_voice_end);
 static constexpr std::size_t packet_header_size = 8 + sizeof(packet_header);
+static constexpr std::size_t packet_config_size = 8 + sizeof(packet_config);
 
 }// namespace dgate
 

@@ -38,6 +38,7 @@
 #include "dgate/dgate.h"
 #include <ev++.h>
 #include <string>
+#include <unordered_set>
 namespace dgate {
 
 class client {
@@ -60,15 +61,18 @@ protected:
 
 	void dgate_reply(const dgate::packet& p, size_t len);
 
-	std::string cs_;
-
 	ev::dynamic_loop loop_;
 
 	int dgate_sock_;
 
+	// Information retrieved from d-gate.
+	std::unordered_set<char> enabled_modules_;
+	std::string cs_;
+
 private:
 	std::string dgate_socket_path_;
 	void dgate_readable(ev::io&, int);
+	void dgate_handle_config(const packet& p, size_t len);
 	ev::io ev_dgate_readable_;
 };
 

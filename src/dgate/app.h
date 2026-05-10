@@ -97,6 +97,7 @@ private:
 
 	ev::io ev_dgate_readable_;
 
+	uint32_t enabled_module_bits_;
 	std::unordered_set<char> enabled_modules_;// Enabled modules on this GATE.
 	std::unordered_map<char, std::unique_ptr<module>> modules_;
 };
